@@ -26,6 +26,23 @@ import { type SegmentedTabItem, SegmentedTabs } from './SegmentedTabs';
 /** 지원자 상세 오른쪽 영역의 탭. 평가 현황은 조회 전용이고, 입력은 개인 평가 탭에만 있다. */
 export type ReviewDetailTab = 'review' | 'status';
 
+/** 새로고침 뒤 답변을 보던 위치로 돌아오게 지원자 id와 스크롤 위치를 탭마다 기억한다(sessionStorage). */
+const ANSWERS_SCROLL_KEY = 'boaz_recruit_answers_scroll';
+/** 답변을 다 읽어 오기를 기다리는 최대 시간. 이 안에 저장한 위치까지 내려갈 수 없으면 맨 위에 둔다. */
+const SCROLL_RESTORE_WAIT_MS = 3_000;
+
+function readSavedAnswersScroll(applicantId: number): number {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(ANSWERS_SCROLL_KEY) ?? 'null') as {
+      id?: unknown;
+      top?: unknown;
+    } | null;
+    return saved?.id === applicantId && typeof saved.top === 'number' ? saved.top : 0;
+  } catch {
+    return 0;
+  }
+}
+
 const DETAIL_TABS: SegmentedTabItem<ReviewDetailTab>[] = [
   { id: 'review', label: '개인 평가' },
   { id: 'status', label: '운영진 평가 현황' },
@@ -91,9 +108,42 @@ export function ApplicantReviewDetail(p: ApplicantReviewDetailProps) {
   const navigationRef = useRef({ saving: p.saving, onNavigate: p.onNavigate });
   // 다른 지원자로 넘어가면 답변을 맨 위부터 보인다(답변은 새로 읽는 동안 앞 내용을 그대로 두어 스크롤이 남는다).
   const answersScrollRef = useRef<HTMLDivElement>(null);
+  // 다른 지원자로 넘어가면 맨 위에서 시작한다. 새로고침으로 같은 지원자를 다시 열었으면 보던 위치로 돌아간다.
+  // 답변은 따로 읽어 와서 처음에는 내용이 짧으므로, 저장한 위치까지 내려갈 만큼 내용이 그려지면 그때 옮긴다.
   useEffect(() => {
-    answersScrollRef.current?.scrollTo({ top: 0 });
+    const scroller = answersScrollRef.current;
+    if (!scroller) return;
+    const savedTop = readSavedAnswersScroll(a.id);
+    if (!savedTop) {
+      scroller.scrollTo({ top: 0 });
+      return;
+    }
+    const restore = () => {
+      if (scroller.scrollHeight - scroller.clientHeight < savedTop) return false;
+      scroller.scrollTop = savedTop;
+      return true;
+    };
+    if (restore()) return;
+    const observer = new MutationObserver(() => {
+      if (restore()) observer.disconnect();
+    });
+    observer.observe(scroller, { childList: true, subtree: true });
+    const timer = window.setTimeout(() => observer.disconnect(), SCROLL_RESTORE_WAIT_MS);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
   }, [a.id]);
+  const handleAnswersScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    try {
+      sessionStorage.setItem(
+        ANSWERS_SCROLL_KEY,
+        JSON.stringify({ id: a.id, top: event.currentTarget.scrollTop }),
+      );
+    } catch {
+      // 저장하지 못하면 새로고침 때 맨 위에서 시작한다.
+    }
+  };
   useEffect(() => {
     navigationRef.current = { saving: p.saving, onNavigate: p.onNavigate };
   });
@@ -205,6 +255,7 @@ export function ApplicantReviewDetail(p: ApplicantReviewDetailProps) {
             className="review-scroll"
             tabIndex={0}
             aria-labelledby="review-answers-title"
+            onScroll={handleAnswersScroll}
           >
             <ApplicantAnswersSection
               applicantId={a.id}

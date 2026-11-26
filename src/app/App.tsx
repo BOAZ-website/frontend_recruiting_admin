@@ -33,8 +33,9 @@ type Menu = { tab: 'applicants' } | { tab: 'my'; track: TrackType };
 
 // 새로고침해도 보던 메뉴로 돌아오게 탭마다 기억한다. 값은 부문 이름 또는 'applicants'.
 const MENU_KEY = 'boaz_recruit_menu';
-// 로그아웃하면 지우는 화면 기억값. boaz_recruit_detail은 EvaluationManagePage의 DETAIL_KEY다.
-const SCREEN_MEMORY_KEYS = [MENU_KEY, 'boaz_recruit_detail'];
+// 로그아웃하면 지우는 화면 기억값. boaz_recruit_detail은 EvaluationManagePage의 DETAIL_KEY,
+// boaz_recruit_answers_scroll은 ApplicantReviewDetail의 답변 스크롤 위치다.
+const SCREEN_MEMORY_KEYS = [MENU_KEY, 'boaz_recruit_detail', 'boaz_recruit_answers_scroll'];
 
 /** 다음에 같은 탭에서 로그인한 사람이 앞사람이 보던 화면으로 들어가지 않게 지운다. */
 function forgetScreenMemory() {
