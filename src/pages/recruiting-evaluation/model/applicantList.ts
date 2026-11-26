@@ -172,10 +172,16 @@ export function phoneText(phone: string | null): string {
 /** 문항 metadata에서 표의 줄·칸 목록을 꺼낸다. 모양이 다르면 null(답변만으로 그린다). */
 export function tableLayoutOf(metadata: unknown): TableLayout | null {
   if (!metadata || typeof metadata !== 'object') return null;
-  const { rows, columns } = metadata as { rows?: unknown; columns?: unknown };
+  const { rows, columns, multiple } = metadata as {
+    rows?: unknown;
+    columns?: unknown;
+    multiple?: unknown;
+  };
   const isTextList = (value: unknown): value is string[] =>
     Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string');
-  return isTextList(rows) && isTextList(columns) ? { rows, columns } : null;
+  return isTextList(rows) && isTextList(columns)
+    ? { rows, columns, multiple: multiple === true }
+    : null;
 }
 
 export function minorDoubleMajorText(

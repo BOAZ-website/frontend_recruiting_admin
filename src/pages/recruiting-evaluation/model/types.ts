@@ -95,6 +95,8 @@ export interface ApplicantAnswerDto {
 export interface TableLayout {
   rows: string[];
   columns: string[];
+  /** 줄마다 여러 칸을 고를 수 있는 문항(체크박스)인지. 아니면 줄마다 하나(라디오 버튼)다. */
+  multiple: boolean;
 }
 
 /** 관리자 문항 조회(GET /api/v1/admin/recruitment/{id}/questions) 항목 중 화면이 쓰는 필드. */

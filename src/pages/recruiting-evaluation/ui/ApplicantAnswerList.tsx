@@ -1,5 +1,3 @@
-import { Check } from 'lucide-react';
-
 import type { ApplicantAnswerDto, TableLayout } from '../model/types';
 
 interface ApplicantAnswerListProps {
@@ -21,7 +19,8 @@ const isChosen = (value: string | string[] | null | undefined, column: string): 
   Array.isArray(value) ? value.includes(column) : value === column;
 
 /**
- * 지원자가 본 모양 그대로의 표(줄 × 칸)에 고른 칸을 체크로 표시한다.
+ * 지원자가 본 모양 그대로의 표(줄 × 칸). 칸마다 지원서 입력처럼 라디오 버튼(여러 개 고르는 문항은 체크박스)을 두고
+ * 고른 칸만 채운다.
  * 문항 목록에 없는 줄 이름이 답에 있으면(문항이 바뀐 경우) 버리지 않고 아래에 덧붙인다.
  */
 function AnswerGrid({ layout, answer }: { layout: TableLayout; answer: TableAnswer }) {
@@ -45,12 +44,12 @@ function AnswerGrid({ layout, answer }: { layout: TableLayout; answer: TableAnsw
               <th scope="row">{row}</th>
               {layout.columns.map((column) => (
                 <td key={column}>
-                  {isChosen(answer[row], column) && (
-                    <>
-                      <Check size={16} strokeWidth={2.5} aria-hidden="true" />
-                      <span className="sr-only">선택</span>
-                    </>
-                  )}
+                  <span
+                    className={`review-choice-mark ${layout.multiple ? 'is-checkbox' : ''}`}
+                    data-checked={isChosen(answer[row], column)}
+                    aria-hidden="true"
+                  />
+                  {isChosen(answer[row], column) && <span className="sr-only">선택</span>}
                 </td>
               ))}
             </tr>

@@ -446,8 +446,44 @@
 .review-answer-grid th + td {
   border-left: 1px solid #e6e6e9;
 }
-.review-answer-grid tbody td svg {
+/* 지원서 입력처럼 보이는 표시. 고르지 않은 칸은 빈 원(체크박스는 빈 네모), 고른 칸은 회색 점(회색 네모 + 흰 체크). */
+.review-choice-mark {
   display: inline-block;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 9999px;
+  vertical-align: middle;
+  background: #fff;
+}
+.review-choice-mark[data-checked='true'] {
+  border-color: #64748b;
+}
+.review-choice-mark[data-checked='true']::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 9999px;
+  background: #64748b;
+}
+.review-choice-mark.is-checkbox {
+  border-radius: 4px;
+}
+.review-choice-mark.is-checkbox[data-checked='true'] {
+  background: #64748b;
+}
+.review-choice-mark.is-checkbox[data-checked='true']::after {
+  inset: auto;
+  left: 4.5px;
+  top: 1.5px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  border-radius: 0;
+  background: none;
+  transform: rotate(45deg);
 }
 .review-aside {
   display: flex;
