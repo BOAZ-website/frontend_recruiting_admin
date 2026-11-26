@@ -1,0 +1,295 @@
+import { useState } from 'react';
+
+import { TRACK_IMAGE_BY_CODE } from '@/entities/user/model/trackImage';
+import { dateTimeTextOf } from '@/shared/lib/date';
+import { useLoaded } from '@/shared/lib/useLoaded';
+import { FilterDropdown, type FilterDropdownOption } from '@/shared/ui/FilterDropdown';
+import { SearchInput } from '@/shared/ui/SearchInput';
+
+import {
+  APPLICANT_SORT_LABELS,
+  type ApplicantListQuery,
+  type ApplicantSort,
+  DEFAULT_APPLICANT_QUERY,
+  displayValue,
+  filterApplicants,
+  isFilteredQuery,
+  summarizeApplicants,
+  TRACK_FILTER_OPTIONS,
+  TRACK_ORDER,
+} from '../model/applicantList';
+import {
+  type ApplicantAnswerDto,
+  type ApplicantEvaluationDto,
+  APPLICATION_STATUS_LABELS,
+  TRACK_LABELS,
+  type TrackType,
+} from '../model/types';
+import { ApplicantDetailModal } from './ApplicantDetailModal';
+import { ListLoading } from './ListLoading';
+import { ValueText } from './ValueText';
+
+interface ApplicantsOverviewProps {
+  fetchApplicants: () => Promise<ApplicantEvaluationDto[]>;
+  fetchAnswers: (applicantIdKey: string) => Promise<ApplicantAnswerDto[]>;
+  /** 제출 완료 지원자를 개인 평가 화면에서 연다. */
+  onEvaluate: (applicantId: number) => void;
+  /** 지표에 부문별 인원을 보여 줄 부문(visibleTracksOf). */
+  visibleTracks: TrackType[];
+  /** 전 부문 지원서를 보는 계정(차기대표진)인지. 아니면 본인 부문의 제출 완료 지원서만 보여 준다. */
+  isAllTrackViewer: boolean;
+}
+
+const STATUS_FILTER_OPTIONS: readonly FilterDropdownOption<ApplicantListQuery['status']>[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'SUBMITTED', label: APPLICATION_STATUS_LABELS.SUBMITTED },
+  { value: 'DRAFT', label: APPLICATION_STATUS_LABELS.DRAFT },
+];
+
+const SORT_OPTIONS: readonly FilterDropdownOption<ApplicantSort>[] = (
+  Object.keys(APPLICANT_SORT_LABELS) as ApplicantSort[]
+).map((sort) => ({ value: sort, label: APPLICANT_SORT_LABELS[sort] }));
+
+const COLUMNS = ['이름', '부문', '학교', '전공', '학기', '졸업 예정', '제출일', '상태'];
+/** 열 너비의 비율. 필터·검색으로 행이 바뀌어도 열 너비가 그대로이게 표를 table-fixed로 두고 이 비율을 쓴다. */
+const COLUMN_WEIGHTS: Record<string, number> = {
+  이름: 10,
+  부문: 9,
+  학교: 16,
+  전공: 16,
+  학기: 7,
+  '졸업 예정': 12,
+  제출일: 18,
+  상태: 12,
+};
+/** 본인 부문 계정은 부문·상태가 모두 같으니 두 열을 뺀다. */
+const OWN_TRACK_COLUMNS = COLUMNS.filter((label) => label !== '부문' && label !== '상태');
+
+/**
+ * 전체 지원 현황(EVL-APP). 지원서 목록과 지원서 상세를 보여 준다.
+ * 전 부문 계정은 임시저장(DRAFT)을 포함한 모든 지원서를, 그 밖의 계정은 본인 부문의 제출 완료 지원서만 본다.
+ */
+export function ApplicantsOverview({
+  fetchApplicants,
+  fetchAnswers,
+  onEvaluate,
+  visibleTracks,
+  isAllTrackViewer,
+}: ApplicantsOverviewProps) {
+  const list = useLoaded('applicants', fetchApplicants);
+  const [query, setQuery] = useState<ApplicantListQuery>(DEFAULT_APPLICANT_QUERY);
+  const [detail, setDetail] = useState<ApplicantEvaluationDto | null>(null);
+
+  // 통계는 볼 수 있는 지원서 전체(임시저장 포함)로 센다. 전 부문 계정은 부문이 비어 있는 임시저장도 센다.
+  const trackApplicants = isAllTrackViewer
+    ? (list.data ?? [])
+    : (list.data ?? []).filter(
+        (applicant) => applicant.track !== null && visibleTracks.includes(applicant.track),
+      );
+  // 목록은 전 부문 계정이면 전부, 본인 부문 계정이면 제출 완료만 보여 준다(서버는 임시저장도 돌려준다).
+  const applicants = isAllTrackViewer
+    ? trackApplicants
+    : trackApplicants.filter((applicant) => applicant.status === 'SUBMITTED');
+  const rows = filterApplicants(applicants, query);
+  const isFirstLoad = list.isLoading && !list.data;
+  const summary = summarizeApplicants(trackApplicants);
+  const columns = isAllTrackViewer ? COLUMNS : OWN_TRACK_COLUMNS;
+  const totalWeight = columns.reduce((sum, label) => sum + COLUMN_WEIGHTS[label], 0);
+  // 부원 등록 요약과 같은 모양. 부문 칸은 임시저장을 포함한 그 부문 지원자 전체를 센다.
+  // 계정과 상관없이 칸은 늘 같은 모양(세 부문 모두)이고, 볼 수 없는 부문은 숫자 대신 '-'를 둔다.
+  const stats: [string, number | null, string?][] = [
+    ['지원자 수', summary.total],
+    ['제출 완료', summary.submitted],
+    ['임시저장', summary.draft],
+    ...TRACK_ORDER.map((track): [string, number | null, string] => [
+      TRACK_LABELS[track],
+      visibleTracks.includes(track)
+        ? trackApplicants.filter((applicant) => applicant.track === track).length
+        : null,
+      TRACK_IMAGE_BY_CODE[track],
+    ]),
+  ];
+
+  const updateQuery = (patch: Partial<ApplicantListQuery>) =>
+    setQuery((current) => ({ ...current, ...patch }));
+
+  const handleMissing = () => {
+    setDetail(null);
+    list.reload();
+  };
+
+  // 처음 읽는 중이거나 읽지 못했으면 가운데 로딩 표시만 둔다(실패면 잠시 뒤 다시 읽는다).
+  if (list.error || isFirstLoad) {
+    return <ListLoading error={list.error} isLoading={list.isLoading} onRetry={list.reload} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <section
+        aria-label="지원 현황 요약"
+        className="mb-12 grid grid-cols-1 gap-y-4 rounded-md border border-slate-200 bg-white px-8 py-7 lg:px-0 lg:grid-flow-col lg:grid-cols-none lg:auto-cols-[minmax(0,1fr)] lg:items-center"
+      >
+        <dl className="contents">
+          {stats.map(([label, count, image], index) => (
+            <div
+              key={label}
+              className={`px-2 text-center ${index > 0 ? 'lg:border-l lg:border-slate-200' : ''}`}
+            >
+              <dt className="flex items-center justify-center gap-1.5 text-sm leading-5 text-slate-500">
+                {image && (
+                  <img
+                    src={image}
+                    alt=""
+                    width={20}
+                    height={20}
+                    className="size-5 object-contain"
+                  />
+                )}
+                {label}
+              </dt>
+              <dd className="mt-2 text-3xl leading-9 font-semibold text-slate-900">
+                {count === null ? <ValueText value="-" /> : `${count}명`}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section aria-label="지원자 목록">
+        <div className="review-list-toolbar flex flex-wrap items-center justify-end gap-3 pb-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {isAllTrackViewer && (
+              <>
+                <FilterDropdown
+                  ariaLabel="제출 상태 필터"
+                  title="전체"
+                  value={query.status}
+                  options={STATUS_FILTER_OPTIONS}
+                  onChange={(status) => updateQuery({ status })}
+                />
+                <FilterDropdown
+                  ariaLabel="부문 필터"
+                  title="부문"
+                  value={query.track}
+                  options={TRACK_FILTER_OPTIONS}
+                  onChange={(track) => updateQuery({ track })}
+                />
+              </>
+            )}
+            <FilterDropdown
+              ariaLabel="정렬"
+              title={APPLICANT_SORT_LABELS.SUBMITTED_DESC}
+              value={query.sort}
+              options={SORT_OPTIONS}
+              onChange={(sort) => updateQuery({ sort })}
+            />
+            <div className="review-search-group">
+              <SearchInput
+                ariaLabel="지원자 검색"
+                placeholder="이름, 이메일, 학교, 전공"
+                value={query.search}
+                onChange={(search) => updateQuery({ search })}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-slate-200 bg-white">
+          <div className="review-table-scroll">
+            <table className="review-list-table w-full min-w-[880px] table-fixed text-xs">
+              <colgroup>
+                {columns.map((label) => (
+                  <col
+                    key={label}
+                    style={{ width: `${(COLUMN_WEIGHTS[label] / totalWeight) * 100}%` }}
+                  />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  {columns.map((label) => (
+                    <th key={label} scope="col" className="px-4 py-3 text-left">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((applicant) => (
+                  <tr
+                    key={applicant.id}
+                    tabIndex={0}
+                    aria-label={`${displayValue(applicant.name)} 지원서 상세`}
+                    onClick={() => setDetail(applicant)}
+                    onKeyDown={(event) => event.key === 'Enter' && setDetail(applicant)}
+                    className="cursor-pointer"
+                  >
+                    <td className="px-4 font-semibold">{displayValue(applicant.name)}</td>
+                    {isAllTrackViewer && (
+                      <td className="px-4">
+                        <ValueText value={applicant.track ? TRACK_LABELS[applicant.track] : '-'} />
+                      </td>
+                    )}
+                    <td className="px-4">
+                      <ValueText value={displayValue(applicant.university)} />
+                    </td>
+                    <td className="px-4">
+                      <ValueText value={displayValue(applicant.major)} />
+                    </td>
+                    <td className="px-4 text-right">
+                      <ValueText value={String(applicant.last_semester ?? '-')} />
+                    </td>
+                    <td className="px-4">
+                      <ValueText value={displayValue(applicant.graduation_date)} />
+                    </td>
+                    <td className="px-4 whitespace-nowrap">
+                      <ValueText
+                        value={
+                          applicant.submitted_at ? dateTimeTextOf(applicant.submitted_at) : '-'
+                        }
+                      />
+                    </td>
+                    {isAllTrackViewer && (
+                      <td className="px-4">{APPLICATION_STATUS_LABELS[applicant.status]}</td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {rows.length === 0 && (
+            <div role="status" className="flex flex-col items-center gap-3 p-8 text-sm">
+              {applicants.length === 0 ? (
+                <p>등록된 지원자가 없습니다.</p>
+              ) : (
+                <>
+                  <p>조건에 맞는 지원자가 없습니다.</p>
+                  {isFilteredQuery(query) && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery({ ...DEFAULT_APPLICANT_QUERY, sort: query.sort })}
+                      className="px-4"
+                    >
+                      필터 초기화
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {detail && (
+        <ApplicantDetailModal
+          applicant={detail}
+          fetchAnswers={fetchAnswers}
+          onClose={() => setDetail(null)}
+          onMissing={handleMissing}
+          onEvaluate={onEvaluate}
+        />
+      )}
+    </div>
+  );
+}
