@@ -66,14 +66,17 @@ export function mergeApplicants(
 /** 공고 하나의 서류 평가 데이터를 서버에서 읽고 쓴다. recruitmentId가 바뀌면 화면을 key로 새로 만든다. */
 export function useEvaluationData(recruitmentId: number, adminId: number): EvaluationDataState {
   const [applicants, setApplicants] = useState<ApplicantEvaluationDto[]>([]);
+  // 연달아 다시 읽을 때 늦게 온 옛 응답이 새 목록을 덮지 않게 마지막 요청만 반영한다.
+  const fetchRequestRef = useRef(0);
 
   const fetchApplicants = useCallback(async (): Promise<ApplicantEvaluationDto[]> => {
+    const requestId = ++fetchRequestRef.current;
     const [summaries, evaluations] = await Promise.all([
       recruitmentApi.fetchApplicantSummaries(recruitmentId),
       recruitmentApi.fetchApplicantEvaluations(recruitmentId),
     ]);
     const merged = mergeApplicants(summaries, evaluations);
-    setApplicants(merged);
+    if (requestId === fetchRequestRef.current) setApplicants(merged);
     return merged;
   }, [recruitmentId]);
 
