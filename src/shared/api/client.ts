@@ -144,11 +144,13 @@ export function refreshAccessToken(): Promise<RefreshResult> {
 }
 
 export async function apiRequest<T = unknown>(request: ApiRequest): Promise<T> {
+  // 요청을 보낸 시점의 토큰 주인을 기록한다. 응답을 기다리는 사이 다른 계정으로 로그인해도 이전 계정 요청을 다시 보내지 않게.
+  const generation = tokenGeneration;
+  const previousAdminId = accessToken ? adminIdOfToken(accessToken) : null;
   const response = await send(request);
   // 토큰이 없거나 만료됐으면 쿠키로 재발급해 다시 보낸다. 쿠키가 거절되면 로그인 화면으로 돌려보낸다.
   if (response.status === 401 && !NO_RETRY_PATHS.includes(request.path)) {
-    const generation = tokenGeneration;
-    const previousAdminId = accessToken ? adminIdOfToken(accessToken) : null;
+    if (generation !== tokenGeneration) return readData<T>(response);
     const result = await refreshAccessToken();
     // 그 사이 로그아웃·다른 계정 로그인이 있었으면 다시 보내지 않는다(다른 계정 이름으로 저장되지 않게).
     if (generation !== tokenGeneration) return readData<T>(response);
