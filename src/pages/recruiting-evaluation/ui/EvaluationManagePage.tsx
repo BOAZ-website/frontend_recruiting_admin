@@ -378,7 +378,8 @@ export function EvaluationManagePage({
   // 데이터 변경은 Hook(saveMyEvaluation)이 맡고, 여기서는 화면 상태와 안내만 다룬다.
   // 성공하면 true. 저장하지 않고 옮기려 할 때(leaveAfterSave·상단 메뉴)도 이 함수로 저장한다.
   async function handleSaveMyEvaluation(): Promise<boolean> {
-    if (!selectedApplicant || isSaving) {
+    // state(isSaving)는 다음 렌더까지 바뀌지 않으므로, 연달아 누른 저장은 savingRef로 먼저 막는다.
+    if (!selectedApplicant || savingRef.current || isSaving) {
       return false;
     }
     const input = toSaveInput(draft);
