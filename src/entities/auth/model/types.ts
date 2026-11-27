@@ -1,4 +1,4 @@
-import type { TrackType } from '@/pages/recruiting-evaluation/model/types';
+import type { TrackType } from '@/entities/recruitment/model/types';
 
 /** 로그인한 운영진. 배포된 백엔드의 계정 조회(GET /api/v1/admin/accounts/{id}) 응답에서 만든다. */
 export interface AuthSession {

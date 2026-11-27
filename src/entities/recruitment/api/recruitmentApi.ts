@@ -12,7 +12,7 @@ import type {
   MyEvaluationDto,
   MyEvaluationInput,
   QuestionDto,
-} from '@/pages/recruiting-evaluation/model/types';
+} from '@/entities/recruitment/model/types';
 import { api } from '@/shared/api/client';
 
 const BASE = '/api/v1/admin/recruitment';
