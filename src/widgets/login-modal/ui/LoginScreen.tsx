@@ -30,7 +30,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </div>
           <p className="-mt-1 text-lg font-semibold text-sky-950">
             Bigdata is Our A to Z{' '}
-            {/* 관리자 페이지임을 문구 안에서 알린다. 색은 로고에 맞춘 파란색(sky-600)이고, 로그인 버튼도 같은 색이다. */}
+            {/* 관리자 페이지임을 문구 안에서 알린다. 색은 로고에 맞춘 파란색(sky-600)이다. 로그인 버튼은 흰 글자 대비를 위해 한 단계 진한 sky-700이다. */}
             <span className="text-sky-600">Admin</span>
           </p>
         </div>

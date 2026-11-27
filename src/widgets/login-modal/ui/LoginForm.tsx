@@ -160,7 +160,7 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="h-12 w-full cursor-pointer rounded-sm bg-sky-600 text-sm font-bold text-white transition-colors hover:bg-sky-700 active:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-12 w-full cursor-pointer rounded-sm bg-sky-700 text-sm font-bold text-white transition-colors hover:bg-sky-800 active:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? '로그인 중' : '로그인'}
         </button>

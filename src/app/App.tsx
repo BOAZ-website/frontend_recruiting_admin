@@ -245,7 +245,7 @@ export default function App() {
     <nav aria-label="서류 평가 메뉴" className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
       {menuGroups.map((group) => (
         <div key={group.title} className="space-y-0.5">
-          <p className="px-2 pt-1 pb-0.5 text-[12px] font-semibold tracking-tight text-slate-400">
+          <p className="px-2 pt-1 pb-0.5 text-[12px] font-semibold tracking-tight text-slate-500">
             {group.title}
           </p>
           <div className="space-y-0.5 pl-3">

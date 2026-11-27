@@ -28,7 +28,7 @@ export function SearchInput({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-44 rounded-sm border border-slate-200 bg-white pl-8 pr-3 text-xs font-medium text-slate-800 shadow-2xs outline-none transition-colors placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-slate-400"
+        className="h-9 w-44 rounded-sm border border-slate-200 bg-white pl-8 pr-3 text-xs font-medium text-slate-800 shadow-2xs outline-none transition-colors placeholder:font-normal placeholder:text-slate-500 hover:border-slate-300 focus:border-slate-400"
       />
     </div>
   );

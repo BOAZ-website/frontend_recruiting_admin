@@ -30,7 +30,7 @@ export const MODAL_CONFIRM_BTN =
   'h-9 rounded-sm border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-800 transition-colors hover:border-slate-400 hover:bg-slate-50 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40';
 export const FIELD_LABEL = 'mb-2 block text-xs font-semibold text-slate-500';
 export const FIELD_INPUT =
-  'h-10 w-full rounded-sm border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-slate-400';
+  'h-10 w-full rounded-sm border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-500 hover:border-slate-300 focus:border-slate-400';
 /** 바꿀 수 없는 값을 입력칸 자리에 보여줄 때 쓰는 상자. */
 export const FIELD_READONLY =
   'flex h-10 items-center rounded-sm border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500';
