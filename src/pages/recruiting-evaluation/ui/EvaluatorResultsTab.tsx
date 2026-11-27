@@ -235,7 +235,7 @@ export function EvaluatorResultsTab({
                     const { draft } = editing;
                     return (
                       <tr key={row.admin_id}>
-                        <td className="px-4 whitespace-nowrap">{row.displayName}</td>
+                        <td className="px-4 break-keep wrap-break-word">{row.displayName}</td>
                         <td className="px-4 whitespace-nowrap">
                           {isRowEditing ? (
                             <SelectDropdown
