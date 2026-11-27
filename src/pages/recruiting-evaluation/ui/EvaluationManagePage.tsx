@@ -6,10 +6,10 @@ import { registerLeaveGuard } from '@/shared/lib/leaveGuard';
 import { Toast, type ToastMessage } from '@/shared/ui/Toast';
 
 import {
+  canViewAllApplicants,
   canWriteFinalDecisionOf,
   DEFAULT_REVIEW_QUERY,
   filterReviewList,
-  isAllTrackViewer,
   type ReviewListQuery,
   visibleTracksOf,
 } from '../model/applicantList';
@@ -536,7 +536,7 @@ export function EvaluationManagePage({
           fetchAnswers={fetchAnswers}
           onEvaluate={handleEvaluateFromOverview}
           visibleTracks={visibleTracksOf(account)}
-          isAllTrackViewer={isAllTrackViewer(account)}
+          canViewAllApplicants={canViewAllApplicants(account)}
         />
       )}
 

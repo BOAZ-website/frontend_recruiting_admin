@@ -38,7 +38,7 @@ async function fetchSession(): Promise<AuthSession> {
     adminId: account.id,
     username: account.username,
     name: account.name,
-    role: account.role === 'SUPER' ? 'SUPER' : 'TEAM',
+    role: account.role === 'SUPER' || account.role === 'MASTER' ? account.role : 'TEAM',
     teamName: account.team_name,
     track: account.track as AuthSession['track'],
   };

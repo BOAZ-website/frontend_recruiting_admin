@@ -5,8 +5,8 @@ export interface AuthSession {
   adminId: number;
   username: string;
   name: string;
-  /** SUPER(대표진·차기대표진) 또는 TEAM(그 외 팀). */
-  role: 'SUPER' | 'TEAM';
+  /** SUPER(대표진·차기대표진), MASTER(서비스운영팀장, 백엔드 dev의 역할) 또는 TEAM(그 외 팀). */
+  role: 'SUPER' | 'MASTER' | 'TEAM';
   /** 대표진, 차기대표진, 서비스운영팀 등 한글 팀 이름. */
   teamName: string;
   /** 계정의 부문. 차기대표진처럼 전 부문 계정은 ALL일 수 있다. */

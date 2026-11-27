@@ -32,12 +32,12 @@ import { ValueText } from './ValueText';
 interface ApplicantsOverviewProps {
   fetchApplicants: () => Promise<ApplicantEvaluationDto[]>;
   fetchAnswers: (applicantIdKey: string) => Promise<ApplicantAnswerDto[]>;
-  /** 제출 완료 지원자를 개인 평가 화면에서 연다. */
+  /** 제출 완료 지원자를 개인 평가 화면에서 연다. 평가할 수 있는 부문(visibleTracks)의 지원자에만 둔다. */
   onEvaluate: (applicantId: number) => void;
-  /** 지표에 부문별 인원을 보여 줄 부문(visibleTracksOf). */
+  /** 평가할 수 있는 부문(visibleTracksOf). 전 부문을 볼 수 없는 계정은 목록도 이 부문만 보여 준다. 요약 지표는 부문과 상관없이 전체를 센다. */
   visibleTracks: TrackType[];
-  /** 전 부문 지원서를 보는 계정(차기대표진)인지. 아니면 본인 부문의 제출 완료 지원서만 보여 준다. */
-  isAllTrackViewer: boolean;
+  /** 전 부문 지원서를 보는 계정(차기대표진, 서비스운영팀장 MASTER)인지. 아니면 본인 부문의 제출 완료 지원서만 보여 준다. */
+  canViewAllApplicants: boolean;
 }
 
 const STATUS_FILTER_OPTIONS: readonly FilterDropdownOption<ApplicantListQuery['status']>[] = [
@@ -62,50 +62,48 @@ const COLUMN_WEIGHTS: Record<string, number> = {
   제출일: 18,
   상태: 12,
 };
-/** 본인 부문 계정은 부문·상태가 모두 같으니 두 열을 뺀다. */
-const OWN_TRACK_COLUMNS = COLUMNS.filter((label) => label !== '부문' && label !== '상태');
 
 /**
  * 전체 지원 현황(EVL-APP). 지원서 목록과 지원서 상세를 보여 준다.
- * 전 부문 계정은 임시저장(DRAFT)을 포함한 모든 지원서를, 그 밖의 계정은 본인 부문의 제출 완료 지원서만 본다.
+ * 요약 지표는 계정과 상관없이 전체 지원자로 센다. 목록은 전 부문 계정이면 임시저장(DRAFT)을 포함한 모든 지원서를,
+ * 그 밖의 계정은 본인 부문의 제출 완료 지원서만 보여 준다.
  */
 export function ApplicantsOverview({
   fetchApplicants,
   fetchAnswers,
   onEvaluate,
   visibleTracks,
-  isAllTrackViewer,
+  canViewAllApplicants,
 }: ApplicantsOverviewProps) {
   const list = useLoaded('applicants', fetchApplicants);
   const [query, setQuery] = useState<ApplicantListQuery>(DEFAULT_APPLICANT_QUERY);
   const [detail, setDetail] = useState<ApplicantEvaluationDto | null>(null);
 
-  // 통계는 볼 수 있는 지원서 전체(임시저장 포함)로 센다. 전 부문 계정은 부문이 비어 있는 임시저장도 센다.
-  const trackApplicants = isAllTrackViewer
-    ? (list.data ?? [])
-    : (list.data ?? []).filter(
-        (applicant) => applicant.track !== null && visibleTracks.includes(applicant.track),
+  // 서버는 계정과 상관없이 전 부문 지원서(임시저장 포함)를 돌려준다.
+  const allApplicants = list.data ?? [];
+  // 목록은 전 부문 계정이면 전부, 그 밖의 계정이면 본인 부문의 제출 완료만 보여 준다.
+  const applicants = canViewAllApplicants
+    ? allApplicants
+    : allApplicants.filter(
+        (applicant) =>
+          applicant.status === 'SUBMITTED' &&
+          applicant.track !== null &&
+          visibleTracks.includes(applicant.track),
       );
-  // 목록은 전 부문 계정이면 전부, 본인 부문 계정이면 제출 완료만 보여 준다(서버는 임시저장도 돌려준다).
-  const applicants = isAllTrackViewer
-    ? trackApplicants
-    : trackApplicants.filter((applicant) => applicant.status === 'SUBMITTED');
   const rows = filterApplicants(applicants, query);
   const isFirstLoad = list.isLoading && !list.data;
-  const summary = summarizeApplicants(trackApplicants);
-  const columns = isAllTrackViewer ? COLUMNS : OWN_TRACK_COLUMNS;
-  const totalWeight = columns.reduce((sum, label) => sum + COLUMN_WEIGHTS[label], 0);
+  // 요약 통계는 계정과 상관없이 전체 지원자(임시저장, 부문이 비어 있는 임시저장 포함)로 센다.
+  const summary = summarizeApplicants(allApplicants);
+  // 계정과 상관없이 열은 늘 같다(본인 부문 계정도 부문·상태 열을 본다).
+  const totalWeight = COLUMNS.reduce((sum, label) => sum + COLUMN_WEIGHTS[label], 0);
   // 부원 등록 요약과 같은 모양. 부문 칸은 임시저장을 포함한 그 부문 지원자 전체를 센다.
-  // 계정과 상관없이 칸은 늘 같은 모양(세 부문 모두)이고, 볼 수 없는 부문은 숫자 대신 '-'를 둔다.
-  const stats: [string, number | null, string?][] = [
+  const stats: [string, number, string?][] = [
     ['지원자 수', summary.total],
     ['제출 완료', summary.submitted],
     ['임시저장', summary.draft],
-    ...TRACK_ORDER.map((track): [string, number | null, string] => [
+    ...TRACK_ORDER.map((track): [string, number, string] => [
       TRACK_LABELS[track],
-      visibleTracks.includes(track)
-        ? trackApplicants.filter((applicant) => applicant.track === track).length
-        : null,
+      allApplicants.filter((applicant) => applicant.track === track).length,
       TRACK_IMAGE_BY_CODE[track],
     ]),
   ];
@@ -148,7 +146,7 @@ export function ApplicantsOverview({
                 {label}
               </dt>
               <dd className="mt-2 text-3xl leading-9 font-semibold text-slate-900">
-                {count === null ? <ValueText value="-" /> : `${count}명`}
+                {`${count}명`}
               </dd>
             </div>
           ))}
@@ -158,7 +156,7 @@ export function ApplicantsOverview({
       <section aria-label="지원자 목록">
         <div className="review-list-toolbar flex flex-wrap items-center justify-end gap-3 pb-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {isAllTrackViewer && (
+            {canViewAllApplicants && (
               <>
                 <FilterDropdown
                   ariaLabel="제출 상태 필터"
@@ -198,7 +196,7 @@ export function ApplicantsOverview({
           <div className="review-table-scroll">
             <table className="review-list-table w-full min-w-[880px] table-fixed text-xs">
               <colgroup>
-                {columns.map((label) => (
+                {COLUMNS.map((label) => (
                   <col
                     key={label}
                     style={{ width: `${(COLUMN_WEIGHTS[label] / totalWeight) * 100}%` }}
@@ -207,7 +205,7 @@ export function ApplicantsOverview({
               </colgroup>
               <thead>
                 <tr>
-                  {columns.map((label) => (
+                  {COLUMNS.map((label) => (
                     <th key={label} scope="col" className="px-4 py-3 text-left">
                       {label}
                     </th>
@@ -225,11 +223,9 @@ export function ApplicantsOverview({
                     className="cursor-pointer"
                   >
                     <td className="px-4 font-semibold">{displayValue(applicant.name)}</td>
-                    {isAllTrackViewer && (
-                      <td className="px-4">
-                        <ValueText value={applicant.track ? TRACK_LABELS[applicant.track] : '-'} />
-                      </td>
-                    )}
+                    <td className="px-4">
+                      <ValueText value={applicant.track ? TRACK_LABELS[applicant.track] : '-'} />
+                    </td>
                     <td className="px-4">
                       <ValueText value={displayValue(applicant.university)} />
                     </td>
@@ -249,9 +245,7 @@ export function ApplicantsOverview({
                         }
                       />
                     </td>
-                    {isAllTrackViewer && (
-                      <td className="px-4">{APPLICATION_STATUS_LABELS[applicant.status]}</td>
-                    )}
+                    <td className="px-4">{APPLICATION_STATUS_LABELS[applicant.status]}</td>
                   </tr>
                 ))}
               </tbody>
@@ -287,7 +281,10 @@ export function ApplicantsOverview({
           fetchAnswers={fetchAnswers}
           onClose={() => setDetail(null)}
           onMissing={handleMissing}
-          onEvaluate={onEvaluate}
+          // 서비스운영팀장(MASTER)은 다른 부문도 보지만 평가 메뉴는 본인 부문만 있다.
+          onEvaluate={
+            detail.track !== null && visibleTracks.includes(detail.track) ? onEvaluate : undefined
+          }
         />
       )}
     </div>

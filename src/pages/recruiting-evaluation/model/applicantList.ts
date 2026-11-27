@@ -98,7 +98,7 @@ export interface ApplicantSummary {
   finalPending: number;
 }
 
-/** 받은 목록으로 통계를 센다. 권한에 따라 일부 부문만 받을 수 있어 "전체 모집 인원"과 같지 않을 수 있다. */
+/** 받은 목록으로 통계를 센다. 넘긴 목록 범위(전체 또는 한 부문)의 인원이다. */
 export function summarizeApplicants(
   applicants: readonly ApplicantEvaluationDto[],
 ): ApplicantSummary {
@@ -123,6 +123,14 @@ export function isAllTrackViewer(account: Pick<AuthSession, 'role' | 'teamName'>
 }
 
 /**
+ * 전체 지원 현황에서 전 부문 지원서(임시저장 포함)를 보는 계정인지. 차기대표진과 서비스운영팀장(MASTER)이다.
+ * 서비스운영팀 팀원(TEAM)은 일반 운영진처럼 본인 부문의 제출 완료만 본다. 평가 메뉴·최종 평가 권한은 isAllTrackViewer를 따른다.
+ */
+export function canViewAllApplicants(account: Pick<AuthSession, 'role' | 'teamName'>): boolean {
+  return isAllTrackViewer(account) || account.role === 'MASTER';
+}
+
+/**
  * 배포된 백엔드에서 이 부문 지원자의 최종 평가를 바꿀 수 있는지.
  * SUPER이면서 대표진·차기대표진인 계정만 바꾸고, 대표진은 본인 부문만, 차기대표진은 전 부문이다.
  */
@@ -135,7 +143,7 @@ export function canWriteFinalDecisionOf(
   return account.teamName === '대표진' && account.track === track;
 }
 
-/** 전체 지원 현황 지표와 부문 메뉴에서 보여 줄 부문. 서버 목록 API와 같은 기준이다. */
+/** 부문 메뉴와 전체 지원 현황 목록에서 보여 줄 부문. 서버 평가 목록 API와 같은 기준이다. */
 export function visibleTracksOf(
   account: Pick<AuthSession, 'role' | 'teamName' | 'track'>,
 ): TrackType[] {
