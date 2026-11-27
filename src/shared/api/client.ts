@@ -14,6 +14,8 @@ const NETWORK_ERROR_MESSAGE = '서버에 연결하지 못했습니다. 잠시 �
 const REFRESH_PATH = '/api/v1/auth/admin/refresh';
 // 401이 와도 재발급하지 않고 그대로 돌려주는 요청(아이디·비밀번호 틀림, 쿠키 만료). 로그아웃은 토큰이 필요해 재발급 뒤 다시 보낸다.
 const NO_RETRY_PATHS = ['/api/v1/auth/admin/login', REFRESH_PATH];
+// 재발급에서 쿠키가 거절됐다고 보는 상태 코드. 그 밖의 실패는 일시적인 것으로 본다.
+const REJECTED_REFRESH_STATUSES = [400, 401, 403, 404];
 
 interface ApiRequest {
   method: HttpMethod;
@@ -122,8 +124,8 @@ export function refreshAccessToken(): Promise<RefreshResult> {
     const generation = tokenGeneration;
     try {
       const response = await send({ method: 'POST', path: REFRESH_PATH });
-      // 5xx는 서버 쪽 문제라 쿠키가 거절된 것으로 보지 않는다.
-      if (response.status >= 500) return 'failed';
+      // 쿠키가 거절된 응답만 로그아웃으로 본다. 5xx·429(요청 수 제한)·408 등은 다시 시도하면 될 수 있다.
+      if (!response.ok && !REJECTED_REFRESH_STATUSES.includes(response.status)) return 'failed';
       if (!response.ok) {
         if (generation === tokenGeneration) accessToken = null;
         return 'rejected';
