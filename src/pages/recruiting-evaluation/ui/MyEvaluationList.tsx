@@ -238,7 +238,9 @@ export function MyEvaluationList({
                     onKeyDown={(event) => event.key === 'Enter' && handleOpen(applicant.id)}
                     className="cursor-pointer"
                   >
-                    <td className="px-4 font-semibold truncate">{displayValue(applicant.name)}</td>
+                    <td className="px-4 font-semibold break-keep wrap-break-word">
+                      {displayValue(applicant.name)}
+                    </td>
                     <td className="px-4 truncate" title={applicant.university ?? undefined}>
                       <ValueText value={displayValue(applicant.university)} />
                     </td>

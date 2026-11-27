@@ -221,7 +221,9 @@ export function ApplicantsOverview({
                     onKeyDown={(event) => event.key === 'Enter' && setDetail(applicant)}
                     className="cursor-pointer"
                   >
-                    <td className="px-4 font-semibold">{displayValue(applicant.name)}</td>
+                    <td className="px-4 font-semibold break-keep wrap-break-word">
+                      {displayValue(applicant.name)}
+                    </td>
                     <td className="px-4">
                       <ValueText value={applicant.track ? TRACK_LABELS[applicant.track] : '-'} />
                     </td>
