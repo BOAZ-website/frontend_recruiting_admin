@@ -13,7 +13,7 @@ export const ERROR_RELOAD_LIMIT = 2;
 
 /**
  * 새로고침해도 지우지 않는 저장값. 이 앱은 쓰지 않지만 관리자 콘솔(frontend_admin)의 키다.
- * 같은 출처(admin.bigdataboaz.com)에 올라가 저장소를 함께 쓰므로, 지우면 관리자 콘솔의
+ * 관리자 콘솔과 같은 출처에 올라가면 저장소를 함께 쓰므로, 지우면 관리자 콘솔의
  * 로그인 표시·아이디와 사용자가 고친 문구 템플릿이 사라진다.
  */
 const KEPT_STORAGE_KEYS: ReadonlySet<string> = new Set([

@@ -51,11 +51,9 @@ npm run dev
 
 ## 배포할 때 확인할 것
 
-- 배포 위치는 `admin.bigdataboaz.com/recruit/`입니다(관리자 콘솔 S3 버킷의 `recruit/` 경로). 빌드 기준 경로는 `vite.config.ts`의 `base: '/recruit/'`입니다.
+- 도메인의 루트(`/`)에 올리도록 빌드합니다. 하위 경로(예: `/recruit/`)에 올리면 JS·CSS 경로가 맞지 않아 화면이 뜨지 않습니다.
 - `VITE_API_BASE_URL`에 운영 API 주소를 넣고 빌드합니다.
-- 운영진에게는 `https://admin.bigdataboaz.com/recruit/index.html`로 안내합니다. 관리자 CloudFront는 없는 경로를 관리자 콘솔의 `index.html`로 돌려주므로, `/recruit/`로 끝나는 주소로 들어가면 관리자 콘솔이 나올 수 있습니다.
-- 평가 기간(2026-12-21~12-25)에는 관리자 콘솔을 버킷 전체 동기화(`aws s3 sync --delete`)로 배포하지 않거나, `recruit/` 경로를 빼고 동기화합니다. 그렇지 않으면 이 앱 파일이 지워집니다.
-- 관리자 콘솔과 같은 출처라 브라우저 저장소를 함께 씁니다. 이 앱의 키는 `boaz_recruit_*`로 시작합니다.
+- 이 앱의 브라우저 저장소 키는 `boaz_recruit_*`로 시작합니다. 관리자 콘솔과 같은 주소에 올리면 저장소를 함께 쓰게 됩니다.
 - 백엔드 `main`의 CORS는 `www`·`dev`·`api`·`admin.bigdataboaz.com`만 허용합니다. 다른 주소에 올리면 백엔드 설정을 바꿔 다시 배포해야 합니다.
 - 로그인 유지에 쓰는 Refresh Token 쿠키는 `bigdataboaz.com` 도메인, `SameSite=Strict`입니다. `bigdataboaz.com`의 하위 주소에서만 새로고침 뒤 로그인이 유지됩니다.
 - Access Token은 브라우저 메모리에만 두고 저장소(localStorage)에 넣지 않습니다.

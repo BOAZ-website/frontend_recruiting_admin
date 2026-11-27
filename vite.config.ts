@@ -4,8 +4,6 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  // 관리자 콘솔 버킷의 recruit/ 경로(admin.bigdataboaz.com/recruit/)에 올린다.
-  base: '/recruit/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
