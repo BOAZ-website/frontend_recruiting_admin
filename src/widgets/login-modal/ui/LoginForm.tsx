@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { login } from '@/entities/auth/api/authApi';
 import type { AuthSession } from '@/entities/auth/model/types';
+import { ApiError } from '@/shared/api/apiError';
 import { ClearFieldButton } from '@/shared/ui/field/ClearFieldButton';
 import { PasswordVisibilityButton } from '@/shared/ui/field/PasswordVisibilityButton';
 
@@ -66,6 +67,11 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
       const session = await login({ username: trimmedUsername, password });
       onLoginSuccess(session);
     } catch (error) {
+      // 서버에 닿지 못한 실패는 아이디·비밀번호 문제가 아니므로, 입력칸 오류 대신 알림창으로 알린다.
+      if (error instanceof ApiError && error.code === 'NETWORK_ERROR') {
+        window.alert(error.message);
+        return;
+      }
       setErrorMessage(error instanceof Error ? error.message : '로그인하지 못했습니다.');
       setErrorKind('rejected');
     } finally {
