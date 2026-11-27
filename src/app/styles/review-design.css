@@ -779,6 +779,10 @@
   color: #303236;
   overflow-wrap: anywhere;
 }
+/* 스크롤 래퍼는 최소 너비가 0이라 표 너비를 창에 전하지 못한다. 상세 창에서는 표 너비를 넘겨 창이 표에 맞춰지게 한다. */
+.evaluation-detail .review-answer-grid-scroll {
+  min-width: min-content;
+}
 .evaluation-detail .review-answers-empty {
   margin-top: 12px;
   padding: 32px 16px;
