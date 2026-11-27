@@ -51,7 +51,9 @@ npm run dev
 
 ## 배포할 때 확인할 것
 
+- 도메인의 루트(`/`)에 올리도록 빌드합니다. 하위 경로(예: `/recruit/`)에 올리면 JS·CSS 경로가 맞지 않아 화면이 뜨지 않습니다.
 - `VITE_API_BASE_URL`에 운영 API 주소를 넣고 빌드합니다.
+- 이 앱의 브라우저 저장소 키는 `boaz_recruit_*`로 시작합니다. 관리자 콘솔과 같은 주소에 올리면 저장소를 함께 쓰게 됩니다.
 - 백엔드 `main`의 CORS는 `www`·`dev`·`api`·`admin.bigdataboaz.com`만 허용합니다. 다른 주소에 올리면 백엔드 설정을 바꿔 다시 배포해야 합니다.
 - 로그인 유지에 쓰는 Refresh Token 쿠키는 `bigdataboaz.com` 도메인, `SameSite=Strict`입니다. `bigdataboaz.com`의 하위 주소에서만 새로고침 뒤 로그인이 유지됩니다.
 - Access Token은 브라우저 메모리에만 두고 저장소(localStorage)에 넣지 않습니다.

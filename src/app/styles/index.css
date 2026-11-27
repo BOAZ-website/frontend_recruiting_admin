@@ -1,0 +1,12 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+@import './review-design.css';
+
+/*
+ * 키보드로 고른 요소에 생기는 포커스 테두리(focus-visible outline)를 모든 화면에서 그리지 않는다(운영진 요청, 2026-11-26).
+ * 키보드 사용자는 지금 어디에 있는지 보기 어려워진다. 다시 필요하면 이 규칙만 지운다.
+ */
+*:focus-visible {
+  outline: none !important;
+}

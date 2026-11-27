@@ -1,0 +1,63 @@
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** YYYY-MM-DD 형식이면서 실제로 있는 날짜인지(2026-02-30 같은 날짜는 false). */
+export function isValidIsoDate(value: string): boolean {
+  if (!ISO_DATE_PATTERN.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+const MAX_DATE_DIGITS = 8;
+const YEAR_DIGITS = 4;
+const YEAR_MONTH_DIGITS = 6;
+
+/** 'YYYY-MM-DD' → 'MM-DD'. 주차 버튼처럼 좁은 자리에 쓴다. 날짜 형식이 아니면 빈 문자열. */
+export function monthDayOf(isoDate: string): string {
+  return isValidIsoDate(isoDate) ? isoDate.slice(5) : '';
+}
+
+/**
+ * 입력한 글자를 YYYY-MM-DD로 맞춘다. 숫자만 남기고(최대 8자리) 하이픈을 자동으로 넣는다.
+ * 연도 4자리를 다 쓰면 바로 "2026-"이 되고, 월 2자리를 쓰면 "2026-08-"이 된다.
+ * 지우는 중(글자가 줄어드는 중)에는 끝의 하이픈을 다시 붙이지 않아 계속 지울 수 있다.
+ */
+export function formatDateInput(raw: string, previous = ''): string {
+  const digits = raw.replace(/\D/g, '').slice(0, MAX_DATE_DIGITS);
+  const isDeleting = raw.length < previous.length;
+  const withYear = digits.slice(0, YEAR_DIGITS);
+  const month = digits.slice(YEAR_DIGITS, YEAR_MONTH_DIGITS);
+  const day = digits.slice(YEAR_MONTH_DIGITS);
+
+  if (digits.length < YEAR_DIGITS) return withYear;
+  if (digits.length === YEAR_DIGITS) return isDeleting ? withYear : `${withYear}-`;
+  if (digits.length < YEAR_MONTH_DIGITS) return `${withYear}-${month}`;
+  if (digits.length === YEAR_MONTH_DIGITS) {
+    return isDeleting ? `${withYear}-${month}` : `${withYear}-${month}-`;
+  }
+  return `${withYear}-${month}-${day}`;
+}
+
+/** 로컬 시각을 'YYYY-MM-DD HH:MM:SS'로 쓴다. toISOString은 UTC라 한국 시간과 9시간 어긋난다. */
+export function localDateTime(date: Date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/** 'YYYY-MM-DD…'의 연도를 두 자리로 줄인다. 예: '2026-10-12 16:21:03' → '26-10-12 16:21:03'. */
+export function twoDigitYearOf(value: string): string {
+  return value.slice(2);
+}
+
+/** 날짜(로컬 시간)를 'YYYY-MM-DD'로 쓴다. */
+export function isoDateOf(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** 서버 일시('YYYY-MM-DDTHH:MM:SS')를 화면용 'YYYY-MM-DD HH:MM'으로 쓴다. 한국 시간 그대로 받는다. */
+export function dateTimeTextOf(value: string): string {
+  return value.slice(0, 16).replace('T', ' ');
+}
