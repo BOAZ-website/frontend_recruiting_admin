@@ -242,6 +242,8 @@ export function EvaluationManagePage({
     queueIds: number[],
   ) {
     const requestId = ++openRequestRef.current;
+    // 앞 지원자의 알림(저장 완료 등)이 다음 지원자 화면에 남으면 헷갈리므로 닫는다.
+    setToast(null);
     setSelectedApplicant(app);
     setModalTab(tab);
     setReviewQueue(queueIds);
@@ -290,6 +292,11 @@ export function EvaluationManagePage({
   // 브라우저 뒤로 가기(마우스패드 쓸어 넘기기 포함)로 평가 화면에서 목록으로 돌아가게 한다.
   // 평가 화면을 열 때 방문 기록을 하나 쌓고, 화면 안 버튼·메뉴로 닫으면 그 기록을 되돌린다.
   const isDetailOpen = selectedApplicant !== null;
+  // 늦게 온 저장 응답이 지금 다른 지원자 화면인지 목록인지 알 수 있게 둔다.
+  const isDetailOpenRef = useRef(isDetailOpen);
+  useEffect(() => {
+    isDetailOpenRef.current = isDetailOpen;
+  }, [isDetailOpen]);
   useEffect(() => {
     const isDetailEntry = (window.history.state as { recruitDetail?: boolean } | null)
       ?.recruitDetail;
@@ -407,10 +414,12 @@ export function EvaluationManagePage({
         { decision: savedDraft.decision, score: savedDraft.score },
         input,
       );
-      // 목록 데이터는 Hook이 이미 고쳤다. 화면을 떠났으면 저장 완료만 알리고 상세는 다시 열지 않는다.
-      showToast('평가가 저장되었습니다.', 'success');
+      // 목록 데이터는 Hook이 이미 고쳤다. 화면을 떠났으면 상세는 다시 열지 않는다.
+      // 저장 완료 알림은 같은 지원자를 보고 있거나 목록으로 돌아갔을 때만 띄운다(다른 지원자 화면에서는 헷갈린다).
+      const isSameDetail = requestId === openRequestRef.current;
+      if (isSameDetail || !isDetailOpenRef.current) showToast('평가가 저장되었습니다.', 'success');
       setStatusRefreshKey((key) => key + 1);
-      if (requestId !== openRequestRef.current) return false;
+      if (!isSameDetail) return false;
       setSelectedApplicant(updatedApplicant);
       setSavedDraft(draft);
       setShowDraftErrors(false);
