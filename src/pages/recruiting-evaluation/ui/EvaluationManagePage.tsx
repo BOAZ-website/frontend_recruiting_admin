@@ -303,7 +303,7 @@ export function EvaluationManagePage({
       void leaveAfterSaveRef
         .current(() => {
           hasLeft = true;
-          setSelectedApplicant(null);
+          closeDetail();
         })
         .then(() => {
           // 저장 확인에서 취소하거나 저장에 실패하면 평가 화면에 남으므로 기록을 다시 쌓는다.
@@ -365,7 +365,13 @@ export function EvaluationManagePage({
 
   // 평가 화면에서 목록으로 돌아간다. 저장하지 않은 평가가 있으면 먼저 저장할지 묻는다.
   function handleBackToList() {
-    void leaveAfterSave(() => setSelectedApplicant(null));
+    void leaveAfterSave(closeDetail);
+  }
+
+  // 평가 화면을 닫는다. 요청 번호를 올려, 진행 중인 저장·읽기 응답이 닫은 화면을 다시 열지 않게 한다.
+  function closeDetail() {
+    openRequestRef.current += 1;
+    setSelectedApplicant(null);
   }
 
   // 개인 평가 저장(MY-07). 검증 → 저장 → 결과 안내 순서이고, 실패해도 입력은 그대로 둔다(§4.5).
@@ -390,7 +396,7 @@ export function EvaluationManagePage({
     applicant: ApplicantEvaluationDto,
     input: MyEvaluationInput,
   ): Promise<boolean> {
-    // 저장 중 메뉴를 옮기면 요청 번호가 바뀐다. 그때는 저장 결과로 닫힌 상세를 다시 열지 않는다.
+    // 저장 중 메뉴를 옮기거나 목록으로 돌아가면 요청 번호가 바뀐다. 그때는 저장 결과로 닫힌 상세를 다시 열지 않는다.
     const requestId = openRequestRef.current;
     setIsSaving(true);
     try {
@@ -400,12 +406,13 @@ export function EvaluationManagePage({
         { decision: savedDraft.decision, score: savedDraft.score },
         input,
       );
+      // 목록 데이터는 Hook이 이미 고쳤다. 화면을 떠났으면 저장 완료만 알리고 상세는 다시 열지 않는다.
+      showToast('평가가 저장되었습니다.', 'success');
+      setStatusRefreshKey((key) => key + 1);
       if (requestId !== openRequestRef.current) return false;
       setSelectedApplicant(updatedApplicant);
       setSavedDraft(draft);
       setShowDraftErrors(false);
-      showToast('평가가 저장되었습니다.', 'success');
-      setStatusRefreshKey((key) => key + 1);
       return true;
     } catch (error) {
       const notice = saveFailureNoticeOf(error, applicant.status);
