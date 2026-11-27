@@ -325,8 +325,8 @@ export function ApplicantReviewDetail(p: ApplicantReviewDetailProps) {
                       aria-pressed={p.decision === d}
                       // 판정별 색(review-design.css)을 고르는 표시다.
                       data-decision={d}
-                      // 고른 버튼을 다시 누르면 해제한다. 평가를 지우는 API가 없어 미정(PENDING)으로 저장된다.
-                      onClick={() => p.onDecision(p.decision === d ? 'PENDING' : d)}
+                      // 고른 버튼을 다시 눌러도 해제하지 않는다. 판정은 셋 중 하나를 반드시 고른다.
+                      onClick={() => p.onDecision(d)}
                     >
                       {DECISION_LABELS[d]}
                     </button>

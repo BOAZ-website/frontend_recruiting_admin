@@ -40,11 +40,14 @@ export const EMPTY_DRAFT: MyEvaluationDraft = {
   interview_question: '',
 };
 
-/** 저장된 내 평가로 폼을 채운다. 평가가 없으면(null) 빈 폼이고, 점수가 없으면 '선택'(null)으로 둔다. */
+/**
+ * 저장된 내 평가로 폼을 채운다. 평가가 없으면(null) 빈 폼이고, 점수가 없으면 '선택'(null)으로 둔다.
+ * 예전에 판정을 해제해 미정(PENDING)으로 저장된 평가는 판정을 고르지 않은 것으로 두어, 셋 중 하나를 골라야 저장되게 한다.
+ */
 export function draftFromMyEvaluation(mine: MyEvaluationDto | null): MyEvaluationDraft {
   if (!mine) return EMPTY_DRAFT;
   return {
-    decision: mine.decision,
+    decision: mine.decision === 'PENDING' ? null : mine.decision,
     score: mine.score,
     memo: mine.memo ?? '',
     interview_question: mine.interview_question ?? '',
