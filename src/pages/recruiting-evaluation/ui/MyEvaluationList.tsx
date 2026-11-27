@@ -7,10 +7,8 @@ import { SearchInput } from '@/shared/ui/SearchInput';
 import { SelectDropdown } from '@/shared/ui/SelectDropdown';
 
 import {
-  DEFAULT_REVIEW_QUERY,
   displayValue,
   filterReviewList,
-  isFilteredReviewQuery,
   MY_EVALUATION_FILTER_LABELS,
   type MyEvaluationFilter,
   REVIEW_SORT_LABELS,
@@ -311,18 +309,7 @@ export function MyEvaluationList({
             {submitted.length === 0 ? (
               <p>등록된 지원자가 없습니다.</p>
             ) : (
-              <>
-                <p>조건에 맞는 지원자가 없습니다.</p>
-                {isFilteredReviewQuery(query) && (
-                  <button
-                    type="button"
-                    onClick={() => onQueryChange({ ...DEFAULT_REVIEW_QUERY, sort: query.sort })}
-                    className="px-4"
-                  >
-                    필터 초기화
-                  </button>
-                )}
-              </>
+              <p>조건에 맞는 지원자가 없습니다.</p>
             )}
           </div>
         )}

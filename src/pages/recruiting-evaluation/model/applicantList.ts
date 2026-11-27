@@ -47,10 +47,6 @@ export const APPLICANT_SORT_LABELS: Record<ApplicantSort, string> = {
   NAME: '이름순',
 };
 
-/** 필터·검색 조건이 기본값과 다른지. 필터 결과가 0건일 때 "필터 초기화"를 보여 줄지 정한다. */
-export const isFilteredQuery = (query: ApplicantListQuery): boolean =>
-  query.status !== 'ALL' || query.track !== 'ALL' || query.search.trim() !== '';
-
 // order 1은 오래된순, -1은 최신순. 제출일이 없는 DRAFT는 순서와 관계없이 뒤에 둔다(REC-ADMIN-13 정렬 규칙).
 const compareSubmittedAt = (a: string | null, b: string | null, order: 1 | -1): number => {
   if (a === b) return 0;
@@ -283,13 +279,6 @@ export const DEFAULT_REVIEW_QUERY: ReviewListQuery = {
   myFilter: 'ALL',
   finalDecision: 'ALL',
 };
-
-/** 정렬을 뺀 필터·검색 조건이 기본값과 다른지. */
-export const isFilteredReviewQuery = (query: ReviewListQuery): boolean =>
-  query.track !== 'ALL' ||
-  query.search.trim() !== '' ||
-  query.myFilter !== 'ALL' ||
-  query.finalDecision !== 'ALL';
 
 /**
  * 제출 완료 지원자만 남겨 거르고 정렬한다. 집계 정렬은 같은 값끼리 제출일 최신순을 유지한다.
