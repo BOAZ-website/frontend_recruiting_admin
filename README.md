@@ -64,7 +64,7 @@ npm run dev
 
 - 공통: conventions/issue-pr.md, conventions/git.md, conventions/code-review.md
 - 이 저장소의 차이: conventions/repos.md의 frontend_recruiting_admin 행(임시 저장소, 기본 브랜치 `main`만 사용, 서류 평가 기간(~2026-12-25)이 끝나면 보관)
-- 이슈 생성: tools/new-issue.sh(필수 6값), PR은 Closes 1개
+- 이슈 생성: engineering-playbook 저장소의 tools/new-issue.sh(playbook을 클론해 실행, 필수 6값), PR은 Closes 1개
 - AI 도구 사용: conventions/ai-usage.md
   이 저장소 고유 규칙(여기에만 둠):
 - 커밋: 규약 없음, 훅 없음
