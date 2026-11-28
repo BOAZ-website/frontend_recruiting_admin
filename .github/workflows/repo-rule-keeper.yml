@@ -1,5 +1,5 @@
 # PR 규칙 검사 호출 파일 견본. 저장소 .github/workflows/에 같은 이름(repo-rule-keeper.yml)으로 복사. 원본 변경은 v2 태그 이동으로 반영됨
-name: '🛡️ repo-rule-keeper'
+name: '🛡️ repo-rule-keeper (PR)'
 on:
   pull_request:
     {
