@@ -20,12 +20,20 @@ const PEEK_OPEN_DELAY_MS = 300;
 /** 띄운 사이드바에서 마우스가 벗어난 뒤 닫히기까지의 시간. ☰와 사이드바 사이 빈틈을 지나도 닫히지 않게 한다. */
 const PEEK_CLOSE_DELAY_MS = 200;
 
+/**
+ * 처음 들어올 때 사이드바를 펴 둘 최소 화면 폭. 사이드바(240) + 목록 표(880) + 본문 여백(64)이 다 보이는 폭이다(R-06, V-07).
+ * 이보다 좁으면 접힌 채 시작하고, 한 번 접거나 펴면 그 선택을 기억해 따른다.
+ */
+const SIDEBAR_AUTO_OPEN_MIN_WIDTH = 1184;
+
 function readSidebarOpen(): boolean {
   try {
-    return localStorage.getItem(SIDEBAR_OPEN_KEY) !== 'false';
+    const saved = localStorage.getItem(SIDEBAR_OPEN_KEY);
+    if (saved !== null) return saved !== 'false';
   } catch {
-    return true;
+    // 읽지 못하면 화면 폭으로 정한다.
   }
+  return window.innerWidth >= SIDEBAR_AUTO_OPEN_MIN_WIDTH;
 }
 
 /** 상단 메뉴. 전체 지원 현황 또는 부문별 서류 평가. */
@@ -275,9 +283,10 @@ export default function App() {
                   onNavigate?.();
                   moveTo(item);
                 }}
-                className={`flex w-full cursor-pointer items-center rounded-lg px-2.5 py-2 text-left text-[14px] transition-all focus-visible:outline-2 focus-visible:outline-slate-400 ${
+                // 현재 메뉴는 배경과 함께 왼쪽 표시선을 둔다(V-12). aria-current로 화면 읽기 프로그램에도 알린다.
+                className={`relative flex w-full cursor-pointer items-center rounded-lg px-2.5 py-2 text-left text-[14px] transition-all focus-visible:outline-2 focus-visible:outline-slate-400 ${
                   isActive(item)
-                    ? 'bg-slate-100 font-semibold text-slate-900'
+                    ? 'bg-slate-100 font-semibold text-slate-900 before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-slate-700'
                     : 'font-medium text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
                 }`}
               >

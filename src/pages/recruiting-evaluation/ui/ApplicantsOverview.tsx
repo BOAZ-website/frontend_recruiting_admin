@@ -122,16 +122,18 @@ export function ApplicantsOverview({
   }
 
   return (
-    <div className="space-y-4">
+    // 요약 칸 배치는 화면 폭이 아니라 이 영역의 폭(@container)을 따른다. 사이드바를 펴면 영역이 좁아지기 때문이다(R-06).
+    <div className="@container space-y-4">
+      {/* 좁으면 2열, 조금 넓으면 3열, 넓으면 기존처럼 6칸 한 줄이다. 숫자·라벨은 그대로다. */}
       <section
         aria-label="지원 현황 요약"
-        className="mb-12 grid grid-cols-1 gap-y-4 rounded-md border border-slate-200 bg-white px-8 py-7 lg:px-0 lg:grid-flow-col lg:grid-cols-none lg:auto-cols-[minmax(0,1fr)] lg:items-center"
+        className="mb-12 grid grid-cols-2 gap-y-4 rounded-md border border-slate-200 bg-white px-8 py-7 @lg:grid-cols-3 @4xl:px-0 @4xl:grid-flow-col @4xl:grid-cols-none @4xl:auto-cols-[minmax(0,1fr)] @4xl:items-center"
       >
         <dl className="contents">
           {stats.map(([label, count, image], index) => (
             <div
               key={label}
-              className={`px-2 text-center ${index > 0 ? 'lg:border-l lg:border-slate-200' : ''}`}
+              className={`px-2 text-center ${index > 0 ? '@4xl:border-l @4xl:border-slate-200' : ''}`}
             >
               <dt className="flex items-center justify-center gap-1.5 text-sm leading-5 text-slate-500">
                 {image && (

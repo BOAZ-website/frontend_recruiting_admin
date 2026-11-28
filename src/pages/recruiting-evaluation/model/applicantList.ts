@@ -4,6 +4,7 @@
 import type { AuthSession } from '@/entities/auth/model/types';
 
 import {
+  type ApplicantAnswerDto,
   APPLICATION_STATUS_LABELS,
   type ApplicantSummaryDto,
   type ApplicantEvaluationDto,
@@ -71,14 +72,17 @@ export function filterApplicants(
           (value ?? '').toLowerCase().includes(keyword),
         ),
     )
-    .sort((a, b) =>
-      query.sort === 'NAME'
-        ? (a.name ?? '').localeCompare(b.name ?? '', 'ko')
-        : compareSubmittedAt(
-            a.submitted_at,
-            b.submitted_at,
-            query.sort === 'SUBMITTED_DESC' ? -1 : 1,
-          ),
+    .sort(
+      (a, b) =>
+        // 고른 정렬과 상관없이 임시저장(DRAFT)은 늘 마지막 그룹이다(C-06). 그룹 안 순서는 고른 정렬을 따른다.
+        Number(a.status === 'DRAFT') - Number(b.status === 'DRAFT') ||
+        (query.sort === 'NAME'
+          ? (a.name ?? '').localeCompare(b.name ?? '', 'ko')
+          : compareSubmittedAt(
+              a.submitted_at,
+              b.submitted_at,
+              query.sort === 'SUBMITTED_DESC' ? -1 : 1,
+            )),
     );
 }
 
@@ -167,6 +171,17 @@ export function phoneText(phone: string | null): string {
   if (/^01\d{8}$/.test(digits))
     return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   return phone;
+}
+
+/**
+ * 지원서 답변이 비었는지(V-13). 글은 공백뿐이면 빈 것이고, 표는 모든 줄이 비어 있으면(고른 칸이 없으면) 빈 것이다.
+ */
+export function isAnswerEmpty(answer: ApplicantAnswerDto['answer']): boolean {
+  if (answer === null || answer === undefined) return true;
+  if (typeof answer === 'string') return answer.trim() === '';
+  return Object.values(answer).every((value) =>
+    Array.isArray(value) ? value.length === 0 : value === null || value.trim() === '',
+  );
 }
 
 /**
