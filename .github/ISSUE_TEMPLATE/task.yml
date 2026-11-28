@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       {
-        value: '제목 `[Type]`을 `[Feat]`·`[Fix]`·`[Docs]`·`[Refactor]`·`[Test]`·`[Chore]` 중 하나로 바꾸세요. 만든 뒤 사이드바에서 Type(Feat=Feature, Fix·Hotfix=Bug, 나머지=Task), Priority, 보드 Project 값을 지정하세요. Assignee(비면 작성자)와 작업 종류 라벨(제목 기준)은 자동으로 채워집니다. AI·명령줄은 engineering-playbook 저장소의 tools/new-issue.sh를 씁니다(playbook을 클론해 그 안에서 실행).',
+        value: '제목 `[Type]`을 `[Feat]`·`[Fix]`·`[Hotfix]`·`[Docs]`·`[Refactor]`·`[Style]`·`[Test]`·`[Release]`·`[Chore]` 중 하나로 바꾸세요. 만든 뒤 사이드바에서 Type(Feat=Feature, Fix·Hotfix=Bug, 나머지=Task), Priority, 보드 Project 값을 지정하세요. Assignee(비면 작성자)와 작업 종류 라벨(제목 기준)은 자동으로 채워집니다. AI·명령줄은 engineering-playbook 저장소의 tools/new-issue.sh를 씁니다(playbook을 클론해 그 안에서 실행).',
       }
   - type: textarea
     id: what
