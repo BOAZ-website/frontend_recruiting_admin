@@ -34,7 +34,7 @@ interface ApplicantsOverviewProps {
   fetchAnswers: (applicantIdKey: string) => Promise<ApplicantAnswerDto[]>;
   /** 제출 완료 지원자를 개인 평가 화면에서 연다. 평가할 수 있는 부문(visibleTracks)의 지원자에만 둔다. */
   onEvaluate: (applicantId: number) => void;
-  /** 평가할 수 있는 부문(visibleTracksOf). 전 부문을 볼 수 없는 계정은 목록도 이 부문만 보여 준다. 요약 지표는 부문과 상관없이 전체를 센다. */
+  /** 평가할 수 있는 부문(visibleTracksOf). 전 부문을 볼 수 없는 계정은 목록도 이 부문만 보여 준다. 요약 지표는 서버가 준 응답 전체를 센다. */
   visibleTracks: TrackType[];
   /** 전 부문 지원서를 보는 계정(차기대표진, 서비스운영팀장 MASTER)인지. 아니면 본인 부문의 제출 완료 지원서만 보여 준다. */
   canViewAllApplicants: boolean;
@@ -65,7 +65,7 @@ const COLUMN_WEIGHTS: Record<string, number> = {
 
 /**
  * 전체 지원 현황(EVL-APP). 지원서 목록과 지원서 상세를 보여 준다.
- * 요약 지표는 계정과 상관없이 전체 지원자로 센다. 목록은 전 부문 계정이면 임시저장(DRAFT)을 포함한 모든 지원서를,
+ * 요약 지표는 서버가 이 계정에 준 응답 전체로 센다(본인 부문 계정은 본인 부문만 받는다). 목록은 전 부문 계정이면 임시저장(DRAFT)을 포함한 모든 지원서를,
  * 그 밖의 계정은 본인 부문의 제출 완료 지원서만 보여 준다.
  */
 export function ApplicantsOverview({
@@ -79,7 +79,7 @@ export function ApplicantsOverview({
   const [query, setQuery] = useState<ApplicantListQuery>(DEFAULT_APPLICANT_QUERY);
   const [detail, setDetail] = useState<ApplicantEvaluationDto | null>(null);
 
-  // 서버는 계정과 상관없이 전 부문 지원서(임시저장 포함)를 돌려준다.
+  // 서버는 계정 범위의 지원서만 돌려준다. 본인 부문 계정은 본인 부문(임시저장 포함), 차기대표진은 전 부문이다(V-15).
   const allApplicants = list.data ?? [];
   // 목록은 전 부문 계정이면 전부, 그 밖의 계정이면 본인 부문의 제출 완료만 보여 준다.
   const applicants = canViewAllApplicants
@@ -92,7 +92,7 @@ export function ApplicantsOverview({
       );
   const rows = filterApplicants(applicants, query);
   const isFirstLoad = list.isLoading && !list.data;
-  // 요약 통계는 계정과 상관없이 전체 지원자(임시저장, 부문이 비어 있는 임시저장 포함)로 센다.
+  // 요약 통계는 서버가 준 응답 전체(임시저장, 부문이 비어 있는 임시저장 포함)로 센다. 본인 부문 계정에게는 본인 부문 수다.
   const summary = summarizeApplicants(allApplicants);
   // 계정과 상관없이 열은 늘 같다(본인 부문 계정도 부문·상태 열을 본다).
   const totalWeight = COLUMNS.reduce((sum, label) => sum + COLUMN_WEIGHTS[label], 0);

@@ -53,7 +53,7 @@ export interface ApplicantEvaluationDto extends ApplicantSummaryDto, EvaluationA
 export interface EvaluatorDetailItem {
   admin_id: number;
   name: string;
-  track: TrackType | 'COMMON';
+  track: TrackType | 'ALL';
   decision: EvaluationDecision | null;
   score: number | null;
   memo: string | null;
@@ -63,7 +63,7 @@ export interface EvaluatorDetailItem {
 export interface InterviewQuestionItem {
   admin_id: number;
   name: string;
-  track: TrackType | 'COMMON';
+  track: TrackType | 'ALL';
   interview_question: string | null;
 }
 

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Menu, User } from 'lucide-react';
 
-import { logout, restoreSession } from '@/entities/auth/api/authApi';
+import { INVALID_ACCOUNT_MESSAGE, logout, restoreSession } from '@/entities/auth/api/authApi';
 import type { AuthSession } from '@/entities/auth/model/types';
 import { trackImageOf } from '@/entities/user/model/trackImage';
 import { fetchRecruitments, type RecruitmentDto } from '@/entities/recruitment/api/recruitmentApi';
-import { visibleTracksOf } from '@/pages/recruiting-evaluation/model/applicantList';
+import {
+  canViewAllApplicants,
+  visibleTracksOf,
+} from '@/pages/recruiting-evaluation/model/applicantList';
 import {
   forgetRecoveredDrafts,
   keepDraftForRelogin,
@@ -45,6 +48,9 @@ type Menu = { tab: 'applicants' } | { tab: 'my'; track: TrackType };
 
 // 새로고침해도 보던 메뉴로 돌아오게 탭마다 기억한다. 값은 부문 이름 또는 'applicants'.
 const MENU_KEY = 'boaz_recruit_menu';
+/** 계정 부문이 비었거나 모르는 값일 때 본문 안내(V-08). */
+const UNKNOWN_TRACK_MESSAGE = '계정의 부문 정보를 확인할 수 없습니다. 관리자에게 문의해 주세요.';
+
 // 화면 기억값을 남긴 계정 id. 다른 계정이 로그인하면 앞사람 화면 기억값을 쓰지 않고 지운다.
 const SCREEN_OWNER_KEY = 'boaz_recruit_screen_owner';
 // 로그아웃하면 지우는 화면 기억값. boaz_recruit_detail은 EvaluationManagePage의 DETAIL_KEY,
@@ -126,6 +132,8 @@ export default function App() {
   const [session, setSession] = useState<AuthSession | null | undefined>(undefined);
   // 새로고침 뒤 로그인 상태를 확인하지 못했는지(연결 끊김·서버 오류). 로그인 화면 대신 다시 시도 안내를 보인다.
   const [isRestoreFailed, setIsRestoreFailed] = useState(false);
+  // 되살린 계정 정보가 이 화면이 아는 모양이 아닌지(모르는 역할 등). 안내 화면을 보인다.
+  const [isAccountInvalid, setIsAccountInvalid] = useState(false);
   // 다시 시도를 누를 때마다 올려 로그인 상태 확인을 다시 한다.
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [recruitments, setRecruitments] = useState<RecruitmentDto[] | null>(null);
@@ -206,6 +214,10 @@ export default function App() {
         setIsRestoreFailed(true);
         return;
       }
+      if (restored.status === 'invalidAccount') {
+        setIsAccountInvalid(true);
+        return;
+      }
       if (restored.status === 'ok' && !claimScreenMemory(restored.session.adminId)) {
         setMenu({ tab: 'applicants' });
       }
@@ -284,6 +296,32 @@ export default function App() {
     if (confirmLeave(go)) go();
   };
 
+  if (isAccountInvalid) {
+    return (
+      <main
+        role="alert"
+        className="flex h-full flex-col items-center justify-center gap-3 text-sm text-slate-700"
+      >
+        <p>{INVALID_ACCOUNT_MESSAGE}</p>
+        <button
+          type="button"
+          onClick={() => {
+            // 서버의 로그인(쿠키)을 끝내야 새로고침 때 같은 안내로 돌아오지 않는다. 실패해도 로그인 화면은 보인다.
+            void logout()
+              .catch(() => {})
+              .finally(() => {
+                forgetScreenMemory();
+                setIsAccountInvalid(false);
+                setSession(null);
+              });
+          }}
+          className="cursor-pointer rounded-sm border border-slate-300 bg-white px-4 py-2 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
+        >
+          다시 로그인
+        </button>
+      </main>
+    );
+  }
   if (isRestoreFailed) {
     return (
       <main
@@ -314,6 +352,9 @@ export default function App() {
   if (session === null) return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 
   const tracks = visibleTracksOf(session);
+  // 부문이 비었거나 모르는 값이라 볼 수 있는 부문·지원서가 없는 계정. 전 부문을 보는 계정은 그대로 둔다.
+  const hasUnknownTrack =
+    session.track === null && tracks.length === 0 && !canViewAllApplicants(session);
   // 기억해 둔 부문을 이 계정이 볼 수 없으면(다른 계정으로 로그인 등) 전체 지원 현황을 보인다.
   const menu: Menu =
     savedMenu.tab === 'my' && !tracks.includes(savedMenu.track) ? { tab: 'applicants' } : savedMenu;
@@ -473,7 +514,12 @@ export default function App() {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto px-8 py-7">
-          {recruitmentError ? (
+          {hasUnknownTrack ? (
+            // 부문을 모르는 계정은 메뉴가 비어 빈 화면이 되므로 이유를 본문에 알린다(V-08). 알려진 부문·ALL은 그대로다.
+            <p role="alert" className="text-sm text-slate-700">
+              {UNKNOWN_TRACK_MESSAGE}
+            </p>
+          ) : recruitmentError ? (
             <p role="alert" className="text-sm text-red-600">
               {recruitmentError}
             </p>

@@ -3,6 +3,8 @@ import { LoaderCircle } from 'lucide-react';
 
 import { ApiError } from '@/shared/api/client';
 
+import { InvalidResponseError } from '../model/applicantResponse';
+
 // 목록을 읽지 못했을 때 다시 읽기까지 기다리는 시간.
 const RETRY_DELAY_MS = 3_000;
 
@@ -20,6 +22,8 @@ interface ListLoadingProps {
 
 /** 다시 읽어도 결과가 같은 오류의 안내. 이 오류면 저절로 다시 읽지 않는다. */
 function permanentErrorMessageOf(error: Error | null): string | null {
+  // 응답 모양이 맞지 않으면 다시 읽어도 같으므로 이유를 보이고 멈춘다.
+  if (error instanceof InvalidResponseError) return error.message;
   if (!(error instanceof ApiError)) return null;
   if (error.status === 403) return '볼 수 있는 권한이 없습니다.';
   if (error.status === 404) return '찾을 수 없습니다. 공고나 지원서가 삭제되었을 수 있습니다.';

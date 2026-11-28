@@ -329,3 +329,13 @@ describe('로그인 만료 뒤 초안 복구와 화면 기억', () => {
     await waitFor(() => expect(memoField().value).toBe('저장본'));
   });
 });
+
+describe('잘못된 목록 응답', () => {
+  it('모르는 상태 값이 오면 목록을 그리지 않고 기존 재시도 영역에 이유를 보인다', async () => {
+    fake.summaries = [{ ...fake.summaries[0], status: 'WITHDRAWN' as never }];
+    await renderList();
+    await waitFor(() => getByText(document, 'p', '지원자 정보를 불러오지 못했습니다.'));
+    expect(getByText(document, 'button', '다시 시도')).toBeTruthy();
+    expect(document.querySelector('tbody tr')).toBeNull();
+  });
+});

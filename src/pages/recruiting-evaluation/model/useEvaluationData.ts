@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import * as recruitmentApi from '@/entities/recruitment/api/recruitmentApi';
 
 import { tableLayoutOf } from './applicantList';
+import { assertApplicantResponses } from './applicantResponse';
 import { applyMyEvaluation } from './myEvaluationForm';
 import type {
   ApplicantAnswerDto,
@@ -101,6 +102,8 @@ export function useEvaluationData(recruitmentId: number, adminId: number): Evalu
         ]),
       () => saveGenerationRef.current,
     );
+    // 모르는 상태·부문·판정 값이 오면 그리지 않고 목록 영역에 '지원자 정보를 불러오지 못했습니다.'를 보인다.
+    assertApplicantResponses(summaries, evaluations);
     const merged = mergeApplicants(summaries, evaluations);
     if (requestId === fetchRequestRef.current) setApplicants(merged);
     return merged;
