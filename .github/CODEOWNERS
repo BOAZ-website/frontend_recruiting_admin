@@ -1,3 +1,3 @@
-# repo-rule-keeper 호출 파일 변경은 master 팀(PM·PO) 승인 필수(engineering-playbook conventions/repos.md "룰셋 표준")
-/.github/workflows/repo-rule-keeper.yml @BOAZ-website/master
-/.github/workflows/repo-rule-keeper-issue.yml @BOAZ-website/master
+# 워크플로 파일과 CODEOWNERS 변경은 master 팀(서비스운영팀장) 승인 필수(engineering-playbook conventions/repos.md "룰셋 표준")
+/.github/workflows/ @BOAZ-website/master
+/.github/CODEOWNERS @BOAZ-website/master
