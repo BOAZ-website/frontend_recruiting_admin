@@ -57,3 +57,15 @@ npm run dev
 - 백엔드 `main`의 CORS는 `www`·`dev`·`api`·`admin.bigdataboaz.com`만 허용합니다. 다른 주소에 올리면 백엔드 설정을 바꿔 다시 배포해야 합니다.
 - 로그인 유지에 쓰는 Refresh Token 쿠키는 `bigdataboaz.com` 도메인, `SameSite=Strict`입니다. `bigdataboaz.com`의 하위 주소에서만 새로고침 뒤 로그인이 유지됩니다.
 - Access Token은 브라우저 메모리에만 두고 저장소(localStorage)에 넣지 않습니다.
+
+## 협업 규칙
+
+브랜치·이슈·PR·리뷰는 engineering-playbook을 따른다.
+
+- 공통: conventions/issue-pr.md, conventions/git.md, conventions/code-review.md
+- 이 저장소의 차이: conventions/repos.md의 frontend_recruiting_admin 행(임시 저장소, 기본 브랜치 `main`만 사용, 서류 평가 기간(~2026-12-25)이 끝나면 보관)
+- 이슈 생성: engineering-playbook 저장소의 tools/new-issue.sh(playbook을 클론해 실행, 필수 6값), PR은 Closes 1개
+- AI 도구 사용: conventions/ai-usage.md
+  이 저장소 고유 규칙(여기에만 둠):
+- 커밋: 규약 없음, 훅 없음
+- PR 저장소별 확인: lint·format:check·check-types·build 통과, UI 변경 시 전후 화면

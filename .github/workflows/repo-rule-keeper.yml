@@ -1,0 +1,28 @@
+# PR 규칙 검사 호출 파일 견본. 저장소 .github/workflows/에 같은 이름(repo-rule-keeper.yml)으로 복사. 원본 변경은 v2 태그 이동으로 반영됨
+name: '🛡️ repo-rule-keeper (PR)'
+on:
+  pull_request:
+    {
+      types:
+        [
+          opened,
+          edited,
+          synchronize,
+          reopened,
+          ready_for_review,
+          review_requested,
+          review_request_removed,
+          assigned,
+          unassigned,
+          labeled,
+          unlabeled,
+        ],
+    }
+  pull_request_review: { types: [submitted, dismissed] }
+permissions: { contents: read, issues: write, pull-requests: write, statuses: write }
+concurrency:
+  group: 'rrk-pr-${{ github.event.pull_request.number }}'
+  cancel-in-progress: false
+jobs:
+  pr:
+    uses: BOAZ-website/engineering-playbook/.github/workflows/repo-rule-keeper.yml@v2
