@@ -26,6 +26,48 @@ function permanentErrorMessageOf(error: Error | null): string | null {
   return null;
 }
 
+interface ListRefreshNoticeProps {
+  /** 마지막 다시 읽기의 오류. 없으면 아무것도 그리지 않는다. */
+  error: Error | null;
+  isLoading: boolean;
+  onRetry: () => void;
+}
+
+/**
+ * 이미 목록을 보여 주는 중에 다시 읽기만 실패했을 때 표 위에 두는 안내(C-03). 표·필터·스크롤은 그대로 둔다.
+ * 일시 오류는 기존처럼 잠시 뒤 저절로 다시 읽고, 403·404는 다시 읽지 않고 이유를 보인다.
+ */
+export function ListRefreshNotice({ error, isLoading, onRetry }: ListRefreshNoticeProps) {
+  const hasError = error !== null && !isLoading;
+  const permanentMessage = hasError ? permanentErrorMessageOf(error) : null;
+
+  useEffect(() => {
+    if (!hasError || permanentMessage) return;
+    const timer = window.setTimeout(onRetry, RETRY_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [hasError, permanentMessage, onRetry]);
+
+  if (!error) return null;
+  return (
+    <div
+      role={isLoading ? 'status' : 'alert'}
+      className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700"
+    >
+      <p>
+        {isLoading
+          ? '목록을 다시 불러오는 중입니다.'
+          : (permanentMessage ??
+            '목록을 새로 불러오지 못했습니다. 마지막으로 불러온 목록을 표시합니다.')}
+      </p>
+      {!isLoading && (
+        <button type="button" onClick={onRetry} className="px-3">
+          다시 불러오기
+        </button>
+      )}
+    </div>
+  );
+}
+
 /**
  * 목록·평가 결과를 읽는 동안 영역 가운데에 보이는 로딩 표시. 연결 끊김 같은 일시 오류면 오류 상자 대신 이 표시를 두고 잠시 뒤 다시 읽는다.
  * 권한 없음(403)·없음(404)은 다시 읽어도 같으니 이유를 보이고 멈춘다.

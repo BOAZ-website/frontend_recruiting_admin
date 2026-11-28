@@ -111,15 +111,37 @@ export function applyMyEvaluation(
   return next;
 }
 
+/** 전체가 공백·줄바꿈뿐인 글은 빈 값으로 보낸다. 실제 문장의 앞뒤 공백·줄바꿈은 그대로 둔다(R-10). */
+const blankToEmpty = (text: string): string => (text.trim() === '' ? '' : text);
+
 /** 검증을 통과한 초안을 저장 요청으로 바꾼다. 네 필드를 모두 보낸다(§4.4). 판정이 없으면 null. */
 export function toSaveInput(draft: MyEvaluationDraft): MyEvaluationInput | null {
   if (draft.decision === null) return null;
   return {
     decision: draft.decision,
     score: draft.score,
-    memo: draft.memo,
-    interview_question: draft.interview_question,
+    memo: blankToEmpty(draft.memo),
+    interview_question: blankToEmpty(draft.interview_question),
   };
+}
+
+/** 평가 의견·면접 추천 질문에 각각 허용하는 글자 수(R-03, R-15). 입력은 막지 않고 저장할 때만 검사한다. */
+export const TEXT_LENGTH_LIMIT = 20_000;
+
+/** 글자 수. 이모지처럼 두 칸을 쓰는 글자도 한 글자로 센다. */
+const lengthOf = (text: string): number => Array.from(blankToEmpty(text)).length;
+
+/**
+ * 저장하려는 초안의 글자 수가 한도를 넘었을 때 브라우저 알림 창에 띄울 문구. 넘지 않으면 null.
+ * 둘 다 넘으면 두 문구를 줄을 바꿔 함께 보인다. 입력한 글은 자르거나 지우지 않는다.
+ */
+export function lengthLimitMessageOf(draft: MyEvaluationDraft): string | null {
+  const messages = [
+    lengthOf(draft.memo) > TEXT_LENGTH_LIMIT && '평가 의견은 20,000자 이내로 입력해 주세요.',
+    lengthOf(draft.interview_question) > TEXT_LENGTH_LIMIT &&
+      '면접 추천 질문은 20,000자 이내로 입력해 주세요.',
+  ].filter((message): message is string => Boolean(message));
+  return messages.length ? messages.join('\n') : null;
 }
 
 /**
@@ -148,11 +170,11 @@ export function saveFailureNoticeOf(
       ? { message: '제출 완료된 지원서만 평가할 수 있습니다.', leave: true }
       : { message: '입력값이 올바르지 않습니다.', leave: false };
   }
-  return {
-    message: '평가를 저장하지 못했습니다. 다시 시도해주세요.',
-    leave: false,
-  };
+  return { message: SAVE_FAILED_MESSAGE, leave: false };
 }
+
+/** 원인을 알 수 없는 서버 저장 실패의 토스트 문구(C-05). 개인 평가와 최종 평가가 함께 쓴다. */
+export const SAVE_FAILED_MESSAGE = '평가를 저장하지 못했습니다.';
 
 /** 저장하지 않은 평가가 있을 때 다른 지원자·메뉴로 옮기기 전 확인 문구. 확인이면 저장하고 옮기고, 취소면 저장하지 않고 옮긴다. */
 export const UNSAVED_EVALUATION_MESSAGE =

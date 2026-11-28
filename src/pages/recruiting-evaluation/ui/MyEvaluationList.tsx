@@ -23,7 +23,7 @@ import {
   SELECTABLE_DECISIONS,
   type TrackType,
 } from '../model/types';
-import { ListLoading } from './ListLoading';
+import { ListLoading, ListRefreshNotice } from './ListLoading';
 import { ValueText } from './ValueText';
 
 interface MyEvaluationListProps {
@@ -116,7 +116,6 @@ export function MyEvaluationList({
   const submittedCount = applicants.filter(
     (applicant) => applicant.track === track && applicant.status === 'SUBMITTED',
   ).length;
-  const isFirstLoad = list.isLoading && !list.data;
 
   const updateQuery = (patch: Partial<ReviewListQuery>) => onQueryChange({ ...query, ...patch });
 
@@ -155,13 +154,15 @@ export function MyEvaluationList({
     list.reload();
   };
 
-  // 처음 읽는 중이거나 읽지 못했으면 가운데 로딩 표시만 둔다(실패면 잠시 뒤 다시 읽는다).
-  if (list.error || isFirstLoad) {
+  // 한 번도 읽지 못했을 때만 가운데 로딩 표시를 둔다(실패면 잠시 뒤 다시 읽는다).
+  // 이미 보여 준 목록이 있으면 다시 읽기에 실패해도 표를 남기고 위에 안내만 둔다(C-03).
+  if (!list.data) {
     return <ListLoading error={list.error} isLoading={list.isLoading} onRetry={list.reload} />;
   }
 
   return (
     <section aria-label="평가 대상 목록">
+      <ListRefreshNotice error={list.error} isLoading={list.isLoading} onRetry={list.reload} />
       <div className="review-list-toolbar flex flex-wrap items-center justify-between gap-3 pb-3">
         {/* 표 상자 모서리 곡선이 끝나는 6px(rounded-md)에 맞추고, 줄 아래쪽에 붙여 표와 12px(pb-3) 간격을 둔다. */}
         <span className="self-end pl-1.5 text-xs font-semibold text-slate-600">

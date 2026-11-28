@@ -49,16 +49,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function openApplicant(id: number) {
+async function renderList(viewer: AuthSession = account) {
   screen = await render(
     <EvaluationManagePage
       recruitmentId={3}
-      account={account}
+      account={viewer}
       initialTab="my"
       track="ENGINEERING"
       onOpenTrack={() => {}}
     />,
   );
+}
+
+async function openApplicant(id: number) {
+  await renderList();
   const row = await waitFor(() =>
     getBySelector(document, `tr[aria-label="지원자${id} 평가 열기"]`),
   );
@@ -146,5 +150,79 @@ describe('운영진 평가 현황 본인 행 편집', () => {
 
     release();
     await waitFor(() => expect(tab('운영진 평가 현황').disabled).toBe(false));
+  });
+});
+
+describe('입력 길이와 저장 실패', () => {
+  const over = '가'.repeat(20_001);
+
+  it('R-03: 의견이 20,000자를 넘으면 저장하지 않고 알림 창만 띄우며 입력은 그대로 둔다', async () => {
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    await openApplicant(1);
+    await typeInto(memoField(), over);
+    await click(getByText(document, 'button', '저장하기'));
+
+    expect(alert).toHaveBeenCalledWith('평가 의견은 20,000자 이내로 입력해 주세요.');
+    expect(fake.saved).toHaveLength(0);
+    expect(memoField().value).toBe(over);
+    expect(memoField().maxLength).toBe(-1);
+  });
+
+  it('R-15: 행 편집도 같은 한도를 쓰고, 저장할지 묻기 전에 알린다', async () => {
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await openApplicant(1);
+    await click(tab('운영진 평가 현황'));
+    await click(await waitFor(() => getBySelector(document, 'button[aria-label="내 평가 수정"]')));
+    await typeInto(
+      getBySelector<HTMLTextAreaElement>(document, 'textarea[aria-label="내 면접 추천 질문"]'),
+      over,
+    );
+    await click(getByText(document, 'button', '확인'));
+
+    expect(alert).toHaveBeenCalledWith('면접 추천 질문은 20,000자 이내로 입력해 주세요.');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(fake.saved).toHaveLength(0);
+  });
+
+  it('C-05: 서버 저장 실패는 알림 창 대신 토스트로 알리고 입력을 유지한다', async () => {
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    fake.saveError = new Error('500');
+    await openApplicant(1);
+    await typeInto(memoField(), '실패할 메모');
+    await click(getByText(document, 'button', '저장하기'));
+
+    const toast = await waitFor(() => getBySelector(document, '[role="alert"].fixed'));
+    expect(toast.textContent).toBe('평가를 저장하지 못했습니다.');
+    expect(toast.className).toContain('bg-slate-800');
+    expect(alert).not.toHaveBeenCalled();
+    expect(memoField().value).toBe('실패할 메모');
+  });
+});
+
+describe('C-03 최종 평가 저장 실패 후 재조회 실패', () => {
+  it('이미 보이던 표를 남기고 표 위에 안내와 다시 불러오기 버튼을 둔다', async () => {
+    fake.finalDecisionError = new Error('PATCH 실패');
+    await renderList({ ...account, role: 'SUPER', teamName: '대표진' });
+    const button = await waitFor(() =>
+      getBySelector(document, 'button[aria-label="지원자1 최종 평가"]'),
+    );
+    fake.listErrors = [new Error('GET 실패')];
+    await click(button);
+    await click(getByText(document, '[role="option"]', '합격'));
+
+    await waitFor(() =>
+      getByText(
+        document,
+        'p',
+        '목록을 새로 불러오지 못했습니다. 마지막으로 불러온 목록을 표시합니다.',
+      ),
+    );
+    expect(document.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(getByText(document, '[role="alert"].fixed', '평가를 저장하지 못했습니다.')).toBeTruthy();
+
+    await click(getByText(document, 'button', '다시 불러오기'));
+    await waitFor(() => expect(document.body.textContent).not.toContain('목록을 새로 불러오지'));
+    expect(document.querySelectorAll('tbody tr')).toHaveLength(3);
   });
 });

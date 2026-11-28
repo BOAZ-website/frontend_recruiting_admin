@@ -19,6 +19,7 @@ import {
   draftFromSaveInput,
   EMPTY_DRAFT,
   isDraftChanged,
+  lengthLimitMessageOf,
   type MyEvaluationDraft,
   saveFailureNoticeOf,
   toSaveInput,
@@ -397,6 +398,12 @@ export function EvaluationManagePage({
       setShowDraftErrors(true);
       return false;
     }
+    // 의견·질문이 한도를 넘으면 저장 요청을 보내지 않고 알림 창으로만 알린다. 입력은 그대로 둔다(R-03, R-15).
+    const lengthMessage = lengthLimitMessageOf(draft);
+    if (lengthMessage) {
+      window.alert(lengthMessage);
+      return false;
+    }
     // 진행 중인 저장을 남겨 둔다. 저장 중 상단 메뉴를 누르면 새로 저장하지 않고 이 결과를 따른다.
     const saving = submitMyEvaluation(selectedApplicant, input, draft);
     savingRef.current = saving;
@@ -433,8 +440,9 @@ export function EvaluationManagePage({
       setShowDraftErrors(false);
       return true;
     } catch (error) {
+      // 서버 저장 실패는 토스트로 알린다(C-05). 입력은 그대로 두고 같은 저장 버튼으로 다시 시도한다.
       const notice = saveFailureNoticeOf(error, applicant.status);
-      window.alert(notice.message);
+      showToast(notice.message, 'error');
       if (notice.leave && requestId === openRequestRef.current) setSelectedApplicant(null);
       return false;
     } finally {
@@ -454,7 +462,7 @@ export function EvaluationManagePage({
       return true;
     } catch (error) {
       const notice = finalDecisionFailureNoticeOf(error, applicant.status);
-      window.alert(notice.message);
+      showToast(notice.message, 'error');
       return false;
     }
   }

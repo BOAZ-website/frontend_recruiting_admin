@@ -10,6 +10,7 @@ import {
   orderForViewer,
 } from '../model/evaluationStatus';
 import {
+  lengthLimitMessageOf,
   type MyEvaluationDraft,
   SCORE_SELECT_OPTIONS,
   scoreFromSelect,
@@ -134,6 +135,12 @@ export function EvaluatorResultsTab({
   const handleSave = async () => {
     if (!editing.isDirty) {
       setIsEditing(false);
+      return;
+    }
+    // 개인 평가 탭과 같은 글자 수 한도. 넘으면 저장할지 묻기 전에 알리고 편집을 그대로 둔다(R-03, R-15).
+    const lengthMessage = lengthLimitMessageOf(editing.draft);
+    if (lengthMessage) {
+      window.alert(lengthMessage);
       return;
     }
     if (!window.confirm('수정한 평가를 저장하시겠습니까?')) {

@@ -4,6 +4,7 @@
  */
 import { ApiError } from '@/shared/api/apiError';
 
+import { SAVE_FAILED_MESSAGE } from './myEvaluationForm';
 import type { ApplicationStatus, EvaluationDecision } from './types';
 
 /** 최종 평가 필터 순서(미정 / 합격 / 보류 / 불합격). 행에서 고르는 선택지는 SELECTABLE_DECISIONS다. */
@@ -38,5 +39,5 @@ export function finalDecisionFailureNoticeOf(
       ? { message: '제출 완료된 지원서만 최종 판정을 변경할 수 있습니다.' }
       : { message: '입력값이 올바르지 않습니다.' };
   }
-  return { message: '최종 판정을 변경하지 못했습니다.' };
+  return { message: SAVE_FAILED_MESSAGE };
 }
