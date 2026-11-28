@@ -1,3 +1,4 @@
+import { isAnswerEmpty } from '../model/applicantList';
 import type { ApplicantAnswerDto, TableLayout } from '../model/types';
 
 interface ApplicantAnswerListProps {
@@ -70,11 +71,21 @@ export function ApplicantAnswerList({ answers }: ApplicantAnswerListProps) {
     <>
       {answers.map((answer) => (
         <section className="review-question" key={answer.question_id}>
-          <div className="review-question-title">
+          {/* 답이 빈 문항은 제목을 남기고 옆에 '미작성'만 둔다. 답변 자리는 그리지 않아 빈 높이가 생기지 않는다(V-13). */}
+          <div
+            className={`review-question-title ${isAnswerEmpty(answer.answer) ? 'is-empty' : ''}`}
+          >
             {answer.label && <span>{answer.label}</span>}
-            <h2>{answer.content}</h2>
+            <h2>
+              {answer.content}
+              {isAnswerEmpty(answer.answer) && (
+                <span className="review-answer-unwritten">미작성</span>
+              )}
+            </h2>
           </div>
-          {answer.type === 'TABLE' && answer.answer && typeof answer.answer === 'object' ? (
+          {isAnswerEmpty(answer.answer) ? null : answer.type === 'TABLE' &&
+            answer.answer &&
+            typeof answer.answer === 'object' ? (
             answer.table_layout ? (
               <AnswerGrid layout={answer.table_layout} answer={answer.answer} />
             ) : (

@@ -16,8 +16,10 @@ import {
 import {
   DISCARD_UNDECIDED_EVALUATION_MESSAGE,
   draftFromMyEvaluation,
+  draftFromSaveInput,
   EMPTY_DRAFT,
   isDraftChanged,
+  lengthLimitMessageOf,
   type MyEvaluationDraft,
   saveFailureNoticeOf,
   toSaveInput,
@@ -34,6 +36,11 @@ import {
   type TrackType,
 } from '../model/types';
 import { useEvaluationData } from '../model/useEvaluationData';
+import {
+  type DraftSnapshot,
+  registerDraftSnapshot,
+  takeRecoveredDraft,
+} from '../model/draftRecovery';
 import { ApplicantReviewDetail, type ReviewDetailTab } from './ApplicantReviewDetail';
 import { ApplicantsOverview } from './ApplicantsOverview';
 import { MyEvaluationList } from './MyEvaluationList';
@@ -62,6 +69,8 @@ interface EvaluationManagePageProps {
 const DETAIL_KEY = 'boaz_recruit_detail';
 
 interface SavedDetail {
+  /** 이 화면을 보던 계정. 다른 계정으로 로그인하면 되살리지 않는다. */
+  adminId: number;
   recruitmentId: number;
   applicantId: number;
   tab: ReviewDetailTab;
@@ -76,6 +85,7 @@ function readSavedDetail(): SavedDetail | null {
     if (typeof value !== 'object' || value === null) return null;
     const v = value as Partial<SavedDetail>;
     if (
+      typeof v.adminId !== 'number' ||
       typeof v.recruitmentId !== 'number' ||
       typeof v.applicantId !== 'number' ||
       (v.tab !== 'review' && v.tab !== 'status') ||
@@ -120,6 +130,7 @@ export function EvaluationManagePage({
     fetchMyEvaluation,
     saveMyEvaluation,
     updateFinalDecision,
+    pendingFinalDecisions,
   } = useEvaluationData(recruitmentId, account.adminId);
   const canWriteFinalDecision = canWriteFinalDecisionOf(account, track);
 
@@ -143,6 +154,8 @@ export function EvaluationManagePage({
   const [isSaving, setIsSaving] = useState(false);
   // 진행 중인 개인 평가 저장. 끝나면 null이다.
   const savingRef = useRef<Promise<boolean> | null>(null);
+  // 운영진 평가 현황에서 본인 행 편집을 시작하기 직전의 초안. 행 편집을 취소하면 저장값이 아니라 이 값으로 돌린다(R-01).
+  const rowEditBaseRef = useRef<MyEvaluationDraft | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const isDraftDirty = selectedApplicant !== null && isDraftChanged(draft, savedDraft);
   const draftErrors = showDraftErrors ? validateMyEvaluation(draft) : {};
@@ -255,7 +268,14 @@ export function EvaluationManagePage({
     try {
       const loaded = draftFromMyEvaluation(await fetchMyEvaluation(app.id));
       if (requestId !== openRequestRef.current) return;
-      setDraft(loaded);
+      // 로그인 만료로 남긴 초안이 있으면 서버 최신 값(저장 기준)을 세운 뒤 미저장 입력으로 되살린다.
+      // 내 평가를 읽었다는 것은 지금도 이 지원서에 접근할 수 있다는 뜻이다. 서버에는 자동으로 저장하지 않는다.
+      const recovered = takeRecoveredDraft({
+        adminId: account.adminId,
+        recruitmentId,
+        applicantId: app.id,
+      });
+      setDraft(recovered ?? loaded);
       setSavedDraft(loaded);
     } catch (error) {
       if (requestId !== openRequestRef.current) return;
@@ -276,18 +296,35 @@ export function EvaluationManagePage({
     if (isDetailRestoredRef.current || applicants.length === 0) return;
     isDetailRestoredRef.current = true;
     const saved = readSavedDetail();
-    if (!saved || saved.recruitmentId !== recruitmentId) return;
+    // 같은 계정이 같은 공고에서 보던 화면만 되살린다. 아니면 목록에서 시작한다.
+    if (!saved || saved.adminId !== account.adminId || saved.recruitmentId !== recruitmentId) {
+      return;
+    }
     const app = applicants.find((item) => item.id === saved.applicantId);
     if (app) void openModalRef.current(app, saved.tab, saved.queue);
-  }, [applicants, recruitmentId]);
+  }, [applicants, recruitmentId, account.adminId]);
   useEffect(() => {
     if (!isDetailRestoredRef.current) return;
     writeSavedDetail(
       selectedApplicant
-        ? { recruitmentId, applicantId: selectedApplicant.id, tab: modalTab, queue: reviewQueue }
+        ? {
+            adminId: account.adminId,
+            recruitmentId,
+            applicantId: selectedApplicant.id,
+            tab: modalTab,
+            queue: reviewQueue,
+          }
         : null,
     );
-  }, [recruitmentId, selectedApplicant, modalTab, reviewQueue]);
+  }, [account.adminId, recruitmentId, selectedApplicant, modalTab, reviewQueue]);
+
+  // 로그인이 만료되면 App이 이 화면을 닫기 전에 미저장 초안을 남길 수 있게 지금 초안을 알려 준다.
+  const draftSnapshotRef = useRef<DraftSnapshot | null>(null);
+  draftSnapshotRef.current =
+    selectedApplicant && isDraftDirty
+      ? { adminId: account.adminId, recruitmentId, applicantId: selectedApplicant.id, draft }
+      : null;
+  useEffect(() => registerDraftSnapshot(() => draftSnapshotRef.current), []);
 
   // 브라우저 뒤로 가기(마우스패드 쓸어 넘기기 포함)로 평가 화면에서 목록으로 돌아가게 한다.
   // 평가 화면을 열 때 방문 기록을 하나 쌓고, 화면 안 버튼·메뉴로 닫으면 그 기록을 되돌린다.
@@ -394,8 +431,14 @@ export function EvaluationManagePage({
       setShowDraftErrors(true);
       return false;
     }
+    // 의견·질문이 한도를 넘으면 저장 요청을 보내지 않고 알림 창으로만 알린다. 입력은 그대로 둔다(R-03, R-15).
+    const lengthMessage = lengthLimitMessageOf(draft);
+    if (lengthMessage) {
+      window.alert(lengthMessage);
+      return false;
+    }
     // 진행 중인 저장을 남겨 둔다. 저장 중 상단 메뉴를 누르면 새로 저장하지 않고 이 결과를 따른다.
-    const saving = submitMyEvaluation(selectedApplicant, input);
+    const saving = submitMyEvaluation(selectedApplicant, input, draft);
     savingRef.current = saving;
     return saving;
   }
@@ -403,6 +446,7 @@ export function EvaluationManagePage({
   async function submitMyEvaluation(
     applicant: ApplicantEvaluationDto,
     input: MyEvaluationInput,
+    draftAtSubmit: MyEvaluationDraft,
   ): Promise<boolean> {
     // 저장 중 메뉴를 옮기거나 목록으로 돌아가면 요청 번호가 바뀐다. 그때는 저장 결과로 닫힌 상세를 다시 열지 않는다.
     const requestId = openRequestRef.current;
@@ -421,12 +465,17 @@ export function EvaluationManagePage({
       setStatusRefreshKey((key) => key + 1);
       if (!isSameDetail) return false;
       setSelectedApplicant(updatedApplicant);
-      setSavedDraft(draft);
+      // 저장 기준은 실제로 보낸 값이다(R-02). 저장 중에는 입력이 잠겨 초안이 그대로면 보낸 값으로 맞추고,
+      // 그래도 바뀐 입력이 있으면 저장하지 않은 수정으로 남긴다.
+      const sent = draftFromSaveInput(input);
+      setSavedDraft(sent);
+      setDraft((current) => (isDraftChanged(current, draftAtSubmit) ? current : sent));
       setShowDraftErrors(false);
       return true;
     } catch (error) {
+      // 서버 저장 실패는 토스트로 알린다(C-05). 입력은 그대로 두고 같은 저장 버튼으로 다시 시도한다.
       const notice = saveFailureNoticeOf(error, applicant.status);
-      window.alert(notice.message);
+      showToast(notice.message, 'error');
       if (notice.leave && requestId === openRequestRef.current) setSelectedApplicant(null);
       return false;
     } finally {
@@ -446,7 +495,7 @@ export function EvaluationManagePage({
       return true;
     } catch (error) {
       const notice = finalDecisionFailureNoticeOf(error, applicant.status);
-      window.alert(notice.message);
+      showToast(notice.message, 'error');
       return false;
     }
   }
@@ -460,6 +509,8 @@ export function EvaluationManagePage({
           currentEvaluatorId={currentEvaluatorId}
           tab={modalTab}
           onTabChange={(tab) => {
+            // 저장 중에는 탭을 옮기지 않는다(R-09). 버튼도 잠기지만 같은 렌더에 연달아 누른 경우까지 막는다.
+            if (savingRef.current) return;
             // 개인 평가·운영진 평가 현황을 오가면 앞 화면의 알림(저장 완료 등)은 닫는다.
             setToast(null);
             setModalTab(tab);
@@ -483,10 +534,14 @@ export function EvaluationManagePage({
             saving: isSaving,
             locked: isMyEvaluationLoading || myEvaluationError !== null,
             onChange: (patch) => setDraft((current) => ({ ...current, ...patch })),
-            onStart: () => true,
+            onStart: () => {
+              rowEditBaseRef.current = draft;
+              return true;
+            },
             isDirty: isDraftDirty,
+            // 행 편집만 취소한다. 개인 평가 탭에서 쓰던 미저장 입력은 편집 시작 직전 값으로 남는다(R-01).
             onCancel: () => {
-              setDraft(savedDraft);
+              setDraft(rowEditBaseRef.current ?? savedDraft);
               setShowDraftErrors(false);
             },
             onSave: handleSaveMyEvaluation,
@@ -549,6 +604,7 @@ export function EvaluationManagePage({
           onOpen={handleOpenFromMyList}
           canWriteFinalDecision={canWriteFinalDecision}
           onSaveFinalDecision={handleSaveFinalDecision}
+          pendingFinalDecisions={pendingFinalDecisions}
         />
       )}
     </div>

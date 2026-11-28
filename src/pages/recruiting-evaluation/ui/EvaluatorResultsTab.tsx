@@ -10,6 +10,7 @@ import {
   orderForViewer,
 } from '../model/evaluationStatus';
 import {
+  lengthLimitMessageOf,
   type MyEvaluationDraft,
   SCORE_SELECT_OPTIONS,
   scoreFromSelect,
@@ -136,6 +137,12 @@ export function EvaluatorResultsTab({
       setIsEditing(false);
       return;
     }
+    // 개인 평가 탭과 같은 글자 수 한도. 넘으면 저장할지 묻기 전에 알리고 편집을 그대로 둔다(R-03, R-15).
+    const lengthMessage = lengthLimitMessageOf(editing.draft);
+    if (lengthMessage) {
+      window.alert(lengthMessage);
+      return;
+    }
     if (!window.confirm('수정한 평가를 저장하시겠습니까?')) {
       editing.onCancel();
       setIsEditing(false);
@@ -235,7 +242,7 @@ export function EvaluatorResultsTab({
                     const { draft } = editing;
                     return (
                       <tr key={row.admin_id}>
-                        <td className="px-4 whitespace-nowrap">{row.displayName}</td>
+                        <td className="px-4 break-keep wrap-break-word">{row.displayName}</td>
                         <td className="px-4 whitespace-nowrap">
                           {isRowEditing ? (
                             <SelectDropdown
@@ -247,6 +254,8 @@ export function EvaluatorResultsTab({
                                   : DECISION_OPTIONS
                               }
                               onChange={(decision) => decision && editing.onChange({ decision })}
+                              // 저장 중에는 보낸 값과 화면 값이 달라지지 않게 행 입력을 모두 잠근다(R-02).
+                              disabled={editing.saving}
                               buttonClassName="review-cell-select h-[30px] w-full"
                             />
                           ) : row.decision ? (
@@ -264,6 +273,7 @@ export function EvaluatorResultsTab({
                               onChange={(score) =>
                                 editing.onChange({ score: scoreFromSelect(score) })
                               }
+                              disabled={editing.saving}
                               buttonClassName="review-cell-select h-[30px] w-full"
                             />
                           ) : (
@@ -274,6 +284,7 @@ export function EvaluatorResultsTab({
                           {isRowEditing ? (
                             <textarea
                               aria-label="내 평가 메모"
+                              disabled={editing.saving}
                               value={draft.memo}
                               onChange={(e) => editing.onChange({ memo: e.target.value })}
                             />
@@ -285,6 +296,7 @@ export function EvaluatorResultsTab({
                           {isRowEditing ? (
                             <textarea
                               aria-label="내 면접 추천 질문"
+                              disabled={editing.saving}
                               value={draft.interview_question}
                               onChange={(e) =>
                                 editing.onChange({ interview_question: e.target.value })
@@ -314,7 +326,7 @@ export function EvaluatorResultsTab({
                                   type="button"
                                   aria-label="내 평가 수정"
                                   className="review-row-action review-link-button"
-                                  disabled={editing.locked || isLoading}
+                                  disabled={editing.locked || editing.saving || isLoading}
                                   onClick={() => editing.onStart() && setIsEditing(true)}
                                 >
                                   수정

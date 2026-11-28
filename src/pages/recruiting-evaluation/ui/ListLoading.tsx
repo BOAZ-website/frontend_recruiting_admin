@@ -3,6 +3,8 @@ import { LoaderCircle } from 'lucide-react';
 
 import { ApiError } from '@/shared/api/client';
 
+import { InvalidResponseError } from '../model/applicantResponse';
+
 // 목록을 읽지 못했을 때 다시 읽기까지 기다리는 시간.
 const RETRY_DELAY_MS = 3_000;
 
@@ -20,10 +22,54 @@ interface ListLoadingProps {
 
 /** 다시 읽어도 결과가 같은 오류의 안내. 이 오류면 저절로 다시 읽지 않는다. */
 function permanentErrorMessageOf(error: Error | null): string | null {
+  // 응답 모양이 맞지 않으면 다시 읽어도 같으므로 이유를 보이고 멈춘다.
+  if (error instanceof InvalidResponseError) return error.message;
   if (!(error instanceof ApiError)) return null;
   if (error.status === 403) return '볼 수 있는 권한이 없습니다.';
   if (error.status === 404) return '찾을 수 없습니다. 공고나 지원서가 삭제되었을 수 있습니다.';
   return null;
+}
+
+interface ListRefreshNoticeProps {
+  /** 마지막 다시 읽기의 오류. 없으면 아무것도 그리지 않는다. */
+  error: Error | null;
+  isLoading: boolean;
+  onRetry: () => void;
+}
+
+/**
+ * 이미 목록을 보여 주는 중에 다시 읽기만 실패했을 때 표 위에 두는 안내(C-03). 표·필터·스크롤은 그대로 둔다.
+ * 일시 오류는 기존처럼 잠시 뒤 저절로 다시 읽고, 403·404는 다시 읽지 않고 이유를 보인다.
+ */
+export function ListRefreshNotice({ error, isLoading, onRetry }: ListRefreshNoticeProps) {
+  const hasError = error !== null && !isLoading;
+  const permanentMessage = hasError ? permanentErrorMessageOf(error) : null;
+
+  useEffect(() => {
+    if (!hasError || permanentMessage) return;
+    const timer = window.setTimeout(onRetry, RETRY_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [hasError, permanentMessage, onRetry]);
+
+  if (!error) return null;
+  return (
+    <div
+      role={isLoading ? 'status' : 'alert'}
+      className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700"
+    >
+      <p>
+        {isLoading
+          ? '목록을 다시 불러오는 중입니다.'
+          : (permanentMessage ??
+            '목록을 새로 불러오지 못했습니다. 마지막으로 불러온 목록을 표시합니다.')}
+      </p>
+      {!isLoading && (
+        <button type="button" onClick={onRetry} className="px-3">
+          다시 불러오기
+        </button>
+      )}
+    </div>
+  );
 }
 
 /**

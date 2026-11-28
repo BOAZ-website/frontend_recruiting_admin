@@ -9,8 +9,8 @@ export interface AuthSession {
   role: 'SUPER' | 'MASTER' | 'TEAM';
   /** 대표진, 차기대표진, 서비스운영팀 등 한글 팀 이름. */
   teamName: string;
-  /** 계정의 부문. 차기대표진처럼 전 부문 계정은 ALL일 수 있다. */
-  track: TrackType | 'ALL';
+  /** 계정의 부문. 차기대표진처럼 전 부문 계정은 ALL일 수 있다. 비었거나 모르는 값이면 null이다(V-08). */
+  track: TrackType | 'ALL' | null;
 }
 
 /** POST /api/v1/auth/admin/login 요청. */

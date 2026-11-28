@@ -15,10 +15,8 @@ interface ToastProps {
 
 const TOAST_DURATION_MS = 3000;
 
-const TONE_CLASS: Record<ToastMessage['tone'], string> = {
-  success: 'bg-slate-800 text-white',
-  error: 'bg-rose-700 text-white',
-};
+// 성공·실패 모두 같은 기본 모양이다(C-05). 실패는 화면 읽기 프로그램에 바로 알리도록 role만 다르다.
+const TOAST_CLASS = 'bg-slate-800 text-white';
 
 /**
  * 화면 아래쪽에 잠깐 떴다 사라지는 알림. 저장 성공·일반 저장 실패처럼 화면을 막지 않을 안내에 쓴다.
@@ -40,7 +38,7 @@ export function Toast({ toast, onClose }: ToastProps) {
   return createPortal(
     <div
       role={toast.tone === 'error' ? 'alert' : 'status'}
-      className={`fixed bottom-6 left-1/2 z-70 -translate-x-1/2 rounded-md px-4 py-3 text-sm font-medium shadow-lg ${TONE_CLASS[toast.tone]}`}
+      className={`fixed bottom-6 left-1/2 z-70 -translate-x-1/2 rounded-md px-4 py-3 text-sm font-medium shadow-lg ${TOAST_CLASS}`}
     >
       {toast.message}
     </div>,

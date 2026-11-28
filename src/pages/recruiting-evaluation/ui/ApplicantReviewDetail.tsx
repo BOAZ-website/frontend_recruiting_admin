@@ -158,9 +158,13 @@ export function ApplicantReviewDetail(p: ApplicantReviewDetailProps) {
         event.shiftKey
       )
         return;
+      // 키를 누르고 있어 반복되는 입력은 무시한다. 한 번 누를 때 한 명만 옮긴다(R-08).
+      if (event.repeat) return;
       if (isTypingTarget(event.target) || navigationRef.current.saving) return;
       // 열린 팝업(확인 창 등)이 있으면 화면 뒤의 지원자를 바꾸지 않는다.
       if (document.querySelector('[role="dialog"]')) return;
+      // 드롭다운 목록이 열려 있으면 옮기지 않는다. 포커스는 버튼에 있어 위 검사에 걸리지 않는다(R-07).
+      if (document.querySelector('[role="listbox"]')) return;
       event.preventDefault();
       navigationRef.current.onNavigate(event.key === 'ArrowLeft' ? 'PREV' : 'NEXT');
     };
@@ -192,6 +196,8 @@ export function ApplicantReviewDetail(p: ApplicantReviewDetailProps) {
           items={DETAIL_TABS}
           value={p.tab}
           onChange={p.onTabChange}
+          // 저장 중에는 이전·다음·목록 버튼처럼 탭도 잠근다(R-09).
+          disabled={p.saving}
         />
         <div className="review-toolbar">
           <span>

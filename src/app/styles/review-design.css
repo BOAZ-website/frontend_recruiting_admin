@@ -378,6 +378,14 @@
   line-height: 1.65;
   font-weight: 600;
 }
+/* 답이 빈 문항(V-13) 제목 옆의 작은 회색 표시. */
+.review-answer-unwritten {
+  margin-left: 8px;
+  color: #96989d;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 .review-answer {
   font-size: 14px;
   line-height: 1.95;
@@ -416,6 +424,8 @@
 /* 지원자가 본 모양 그대로의 표(줄 × 칸). 칸이 많으면 표 안에서만 가로로 넘긴다. */
 .review-answer-grid-scroll {
   overflow-x: auto;
+  /* 칸 안 화면 읽기용 글자(sr-only, absolute)의 위치 기준을 이 상자로 둔다. 없으면 상자 밖으로 나가 페이지 폭을 늘린다(C-04). */
+  position: relative;
 }
 .review-answer-grid thead th {
   width: auto;
@@ -1057,6 +1067,11 @@
 }
 .evaluation-scale.applicant-review .review-question-title {
   margin-bottom: calc(0.8125 * var(--u));
+}
+/* 답이 빈 문항(V-13)은 답변 자리가 없으니 제목 아래 간격도 두지 않는다. 평가 화면 규칙보다 뒤에 두어 함께 덮는다. */
+.review-question-title.is-empty,
+.evaluation-scale.applicant-review .review-question-title.is-empty {
+  margin-bottom: 0;
 }
 .evaluation-scale.applicant-review .review-question-title > span {
   margin-bottom: calc(0.5 * var(--u));

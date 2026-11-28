@@ -9,6 +9,8 @@ interface SegmentedTabsProps<T extends string> {
   onChange: (id: T) => void;
   /** 탭 묶음의 이름. 화면 읽기 프로그램이 읽는다. */
   label: string;
+  /** 저장 중처럼 탭을 옮기면 안 될 때 모든 탭을 잠근다. */
+  disabled?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ export function SegmentedTabs<T extends string>({
   value,
   onChange,
   label,
+  disabled = false,
 }: SegmentedTabsProps<T>) {
   return (
     <div
@@ -35,8 +38,9 @@ export function SegmentedTabs<T extends string>({
             key={id}
             type="button"
             aria-pressed={isActive}
+            disabled={disabled}
             onClick={() => onChange(id)}
-            className="relative cursor-pointer pb-3 text-sm font-semibold transition-colors"
+            className="relative cursor-pointer pb-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed"
           >
             {itemLabel}
             {isActive && (

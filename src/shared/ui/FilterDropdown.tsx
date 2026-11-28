@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
+import { useListboxKeyboard } from './useListboxKeyboard';
+
 export interface FilterDropdownOption<T extends string> {
   value: T;
   label: string;
@@ -21,7 +23,7 @@ interface FilterDropdownProps<T extends string> {
 
 /**
  * 표 위 도구 줄의 필터 드롭다운. 그룹 계정 관리의 팀 선택 드롭다운과 같은 모양이다.
- * 바깥으로 포커스가 나가거나 Escape를 누르면 닫힌다.
+ * 바깥으로 포커스가 나가거나 Escape를 누르면 닫힌다. 키보드 조작은 선택 드롭다운(SelectDropdown)과 같다(N2).
  */
 export function FilterDropdown<T extends string>({
   ariaLabel,
@@ -36,6 +38,11 @@ export function FilterDropdown<T extends string>({
     value === options[0]?.value
       ? title
       : (options.find((option) => option.value === value)?.label ?? title);
+  const select = (next: T) => {
+    onChange(next);
+    setIsOpen(false);
+  };
+  const keyboard = useListboxKeyboard({ options, value, isOpen, setIsOpen, onSelect: select });
 
   return (
     <div
@@ -43,16 +50,15 @@ export function FilterDropdown<T extends string>({
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setIsOpen(false);
       }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') setIsOpen(false);
-      }}
     >
       <button
         type="button"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        {...keyboard.buttonProps}
         onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={keyboard.onKeyDown}
         className={`h-9 min-w-24 ${isFullWidth ? 'w-full' : ''} rounded-sm border border-slate-200 bg-white pl-3 pr-9 text-left text-xs font-medium text-slate-800 shadow-2xs outline-none transition-colors hover:border-slate-300 focus:border-slate-400 cursor-pointer`}
       >
         {selectedLabel}
@@ -64,28 +70,29 @@ export function FilterDropdown<T extends string>({
       />
       {isOpen && (
         <div
+          id={keyboard.listId}
           role="listbox"
           aria-label={ariaLabel}
           className="absolute left-0 top-full z-30 mt-1.5 max-h-64 min-w-full w-max overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.28)] animate-in fade-in slide-in-from-top-1 duration-150"
         >
-          {options.map((option) => (
-            <button
+          {options.map((option, index) => (
+            // 항목은 포커스를 받지 않는다. 누를 때 포커스가 버튼에 남아 목록이 바로 닫히지 않는다.
+            <div
               key={option.value}
-              type="button"
+              id={keyboard.optionId(index)}
               role="option"
               aria-selected={option.value === value}
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-              className={`flex w-full items-center border-b border-slate-100 px-4 py-2.5 text-left text-xs whitespace-nowrap transition-colors duration-150 last:border-b-0 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none cursor-pointer ${
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => keyboard.setActiveIndex(index)}
+              onClick={() => select(option.value)}
+              className={`flex w-full items-center border-b border-slate-100 px-4 py-2.5 text-left text-xs whitespace-nowrap transition-colors duration-150 last:border-b-0 cursor-pointer ${
                 option.value === value
                   ? 'bg-slate-100 font-semibold text-slate-950'
                   : 'text-slate-700'
-              }`}
+              } ${index === keyboard.activeIndex && option.value !== value ? 'bg-slate-50' : ''}`}
             >
               {option.label}
-            </button>
+            </div>
           ))}
         </div>
       )}

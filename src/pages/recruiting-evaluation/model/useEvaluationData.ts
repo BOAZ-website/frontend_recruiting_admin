@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import * as recruitmentApi from '@/entities/recruitment/api/recruitmentApi';
 
 import { tableLayoutOf } from './applicantList';
+import { assertApplicantResponses } from './applicantResponse';
 import { applyMyEvaluation } from './myEvaluationForm';
 import type {
   ApplicantAnswerDto,
@@ -41,6 +42,11 @@ export interface EvaluationDataState {
   ) => Promise<ApplicantEvaluationDto>;
   /** [REC-ADMIN-18] 지원자별 최종 판정을 바꾼다. 거절되면 ApiError를 던지고 데이터는 그대로 둔다. */
   updateFinalDecision: (applicantId: number, decision: EvaluationDecision) => Promise<void>;
+  /**
+   * 저장 중인 최종 판정(지원서 id → 고른 값). 목록 화면이 상세에 다녀오며 새로 그려져도 저장이 끝날 때까지
+   * 그 행을 잠그고 고른 값을 보이도록 화면 밖에서 가진다(V-10).
+   */
+  pendingFinalDecisions: Readonly<Record<number, EvaluationDecision>>;
 }
 
 /** 지원서 요약(DRAFT 포함)에 평가 집계를 붙인다. 집계가 없는 지원서는 빈 집계다. */
@@ -63,18 +69,41 @@ export function mergeApplicants(
   });
 }
 
+/**
+ * load()를 부르고, 읽는 사이에 저장이 끝났으면(generation이 바뀌었으면) 저장 전 값일 수 있어 다시 읽는다.
+ * 저장보다 먼저 시작한 조회가 늦게 와 저장 결과를 되돌리지 않게 한다. 저장이 끝난 뒤 시작한 조회는 서버 값을 그대로 따른다.
+ */
+export async function loadAfterSaves<T>(
+  load: () => Promise<T>,
+  generation: () => number,
+): Promise<T> {
+  for (;;) {
+    const before = generation();
+    const value = await load();
+    if (generation() === before) return value;
+  }
+}
+
 /** 공고 하나의 서류 평가 데이터를 서버에서 읽고 쓴다. recruitmentId가 바뀌면 화면을 key로 새로 만든다. */
 export function useEvaluationData(recruitmentId: number, adminId: number): EvaluationDataState {
   const [applicants, setApplicants] = useState<ApplicantEvaluationDto[]>([]);
   // 연달아 다시 읽을 때 늦게 온 옛 응답이 새 목록을 덮지 않게 마지막 요청만 반영한다.
   const fetchRequestRef = useRef(0);
+  // 개인 평가·최종 평가 저장이 성공할 때마다 올린다. 그 전에 시작한 목록 조회 결과는 버리고 다시 읽는다.
+  const saveGenerationRef = useRef(0);
 
   const fetchApplicants = useCallback(async (): Promise<ApplicantEvaluationDto[]> => {
     const requestId = ++fetchRequestRef.current;
-    const [summaries, evaluations] = await Promise.all([
-      recruitmentApi.fetchApplicantSummaries(recruitmentId),
-      recruitmentApi.fetchApplicantEvaluations(recruitmentId),
-    ]);
+    const [summaries, evaluations] = await loadAfterSaves(
+      () =>
+        Promise.all([
+          recruitmentApi.fetchApplicantSummaries(recruitmentId),
+          recruitmentApi.fetchApplicantEvaluations(recruitmentId),
+        ]),
+      () => saveGenerationRef.current,
+    );
+    // 모르는 상태·부문·판정 값이 오면 그리지 않고 목록 영역에 '지원자 정보를 불러오지 못했습니다.'를 보인다.
+    assertApplicantResponses(summaries, evaluations);
     const merged = mergeApplicants(summaries, evaluations);
     if (requestId === fetchRequestRef.current) setApplicants(merged);
     return merged;
@@ -138,22 +167,36 @@ export function useEvaluationData(recruitmentId: number, adminId: number): Evalu
     input: MyEvaluationInput,
   ): Promise<ApplicantEvaluationDto> => {
     await recruitmentApi.saveMyEvaluation(applicant.id, input);
+    saveGenerationRef.current += 1;
     // 전체 목록을 다시 받지 않고 이 지원자만 고친다. 목록은 목록 화면으로 돌아갈 때 한 번 다시 읽는다.
     const updated = applyMyEvaluation(applicant, previous, input);
     setApplicants((current) => current.map((item) => (item.id === applicant.id ? updated : item)));
     return updated;
   };
 
+  const [pendingFinalDecisions, setPendingFinalDecisions] = useState<
+    Record<number, EvaluationDecision>
+  >({});
   const updateFinalDecision = async (
     applicantId: number,
     decision: EvaluationDecision,
   ): Promise<void> => {
-    const result = await recruitmentApi.updateFinalDecision(applicantId, decision);
-    setApplicants((current) =>
-      current.map((item) =>
-        item.id === applicantId ? { ...item, final_decision: result.final_decision } : item,
-      ),
-    );
+    setPendingFinalDecisions((current) => ({ ...current, [applicantId]: decision }));
+    try {
+      const result = await recruitmentApi.updateFinalDecision(applicantId, decision);
+      saveGenerationRef.current += 1;
+      setApplicants((current) =>
+        current.map((item) =>
+          item.id === applicantId ? { ...item, final_decision: result.final_decision } : item,
+        ),
+      );
+    } finally {
+      setPendingFinalDecisions((current) => {
+        const next = { ...current };
+        delete next[applicantId];
+        return next;
+      });
+    }
   };
 
   return {
@@ -166,5 +209,6 @@ export function useEvaluationData(recruitmentId: number, adminId: number): Evalu
     fetchMyEvaluation,
     saveMyEvaluation,
     updateFinalDecision,
+    pendingFinalDecisions,
   };
 }

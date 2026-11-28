@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Menu, User } from 'lucide-react';
 
-import { logout, restoreSession } from '@/entities/auth/api/authApi';
+import { INVALID_ACCOUNT_MESSAGE, logout, restoreSession } from '@/entities/auth/api/authApi';
 import type { AuthSession } from '@/entities/auth/model/types';
 import { trackImageOf } from '@/entities/user/model/trackImage';
 import { fetchRecruitments, type RecruitmentDto } from '@/entities/recruitment/api/recruitmentApi';
-import { visibleTracksOf } from '@/pages/recruiting-evaluation/model/applicantList';
+import {
+  canViewAllApplicants,
+  visibleTracksOf,
+} from '@/pages/recruiting-evaluation/model/applicantList';
+import {
+  forgetRecoveredDrafts,
+  keepDraftForRelogin,
+} from '@/pages/recruiting-evaluation/model/draftRecovery';
 import { TRACK_LABELS, type TrackType } from '@/pages/recruiting-evaluation/model/types';
 import { EvaluationManagePage } from '@/pages/recruiting-evaluation/ui/EvaluationManagePage';
 import { setSessionExpiredHandler } from '@/shared/api/client';
@@ -20,12 +27,20 @@ const PEEK_OPEN_DELAY_MS = 300;
 /** 띄운 사이드바에서 마우스가 벗어난 뒤 닫히기까지의 시간. ☰와 사이드바 사이 빈틈을 지나도 닫히지 않게 한다. */
 const PEEK_CLOSE_DELAY_MS = 200;
 
+/**
+ * 처음 들어올 때 사이드바를 펴 둘 최소 화면 폭. 사이드바(240) + 목록 표(880) + 본문 여백(64)이 다 보이는 폭이다(R-06, V-07).
+ * 이보다 좁으면 접힌 채 시작하고, 한 번 접거나 펴면 그 선택을 기억해 따른다.
+ */
+const SIDEBAR_AUTO_OPEN_MIN_WIDTH = 1184;
+
 function readSidebarOpen(): boolean {
   try {
-    return localStorage.getItem(SIDEBAR_OPEN_KEY) !== 'false';
+    const saved = localStorage.getItem(SIDEBAR_OPEN_KEY);
+    if (saved !== null) return saved !== 'false';
   } catch {
-    return true;
+    // 읽지 못하면 화면 폭으로 정한다.
   }
+  return window.innerWidth >= SIDEBAR_AUTO_OPEN_MIN_WIDTH;
 }
 
 /** 상단 메뉴. 전체 지원 현황 또는 부문별 서류 평가. */
@@ -33,9 +48,19 @@ type Menu = { tab: 'applicants' } | { tab: 'my'; track: TrackType };
 
 // 새로고침해도 보던 메뉴로 돌아오게 탭마다 기억한다. 값은 부문 이름 또는 'applicants'.
 const MENU_KEY = 'boaz_recruit_menu';
+/** 계정 부문이 비었거나 모르는 값일 때 본문 안내(V-08). */
+const UNKNOWN_TRACK_MESSAGE = '계정의 부문 정보를 확인할 수 없습니다. 관리자에게 문의해 주세요.';
+
+// 화면 기억값을 남긴 계정 id. 다른 계정이 로그인하면 앞사람 화면 기억값을 쓰지 않고 지운다.
+const SCREEN_OWNER_KEY = 'boaz_recruit_screen_owner';
 // 로그아웃하면 지우는 화면 기억값. boaz_recruit_detail은 EvaluationManagePage의 DETAIL_KEY,
 // boaz_recruit_answers_scroll은 ApplicantReviewDetail의 답변 스크롤 위치다.
-const SCREEN_MEMORY_KEYS = [MENU_KEY, 'boaz_recruit_detail', 'boaz_recruit_answers_scroll'];
+const SCREEN_MEMORY_KEYS = [
+  MENU_KEY,
+  'boaz_recruit_detail',
+  'boaz_recruit_answers_scroll',
+  SCREEN_OWNER_KEY,
+];
 
 /** 다음에 같은 탭에서 로그인한 사람이 앞사람이 보던 화면으로 들어가지 않게 지운다. */
 function forgetScreenMemory() {
@@ -43,6 +68,22 @@ function forgetScreenMemory() {
     SCREEN_MEMORY_KEYS.forEach((key) => sessionStorage.removeItem(key));
   } catch {
     // 저장소를 쓸 수 없으면 남은 값도 없다.
+  }
+}
+
+/**
+ * 로그인한 계정이 화면 기억값의 주인인지 확인하고 주인으로 적는다. 다른 계정이 남긴 기억값이면 먼저 지운다.
+ * 같은 계정이면 true(보던 메뉴·지원자로 돌아가도 된다).
+ */
+function claimScreenMemory(adminId: number): boolean {
+  try {
+    const owner = sessionStorage.getItem(SCREEN_OWNER_KEY);
+    const isSameOwner = owner === String(adminId);
+    if (!isSameOwner) forgetScreenMemory();
+    sessionStorage.setItem(SCREEN_OWNER_KEY, String(adminId));
+    return isSameOwner;
+  } catch {
+    return false;
   }
 }
 const TRACKS: readonly TrackType[] = ['ANALYSIS', 'VISUALIZATION', 'ENGINEERING'];
@@ -89,6 +130,12 @@ function BrandText() {
 export default function App() {
   // undefined: 새로고침 뒤 로그인 상태를 되살리는 중, null: 로그인 전.
   const [session, setSession] = useState<AuthSession | null | undefined>(undefined);
+  // 새로고침 뒤 로그인 상태를 확인하지 못했는지(연결 끊김·서버 오류). 로그인 화면 대신 다시 시도 안내를 보인다.
+  const [isRestoreFailed, setIsRestoreFailed] = useState(false);
+  // 되살린 계정 정보가 이 화면이 아는 모양이 아닌지(모르는 역할 등). 안내 화면을 보인다.
+  const [isAccountInvalid, setIsAccountInvalid] = useState(false);
+  // 다시 시도를 누를 때마다 올려 로그인 상태 확인을 다시 한다.
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [recruitments, setRecruitments] = useState<RecruitmentDto[] | null>(null);
   const [recruitmentError, setRecruitmentError] = useState<string | null>(null);
   const [recruitmentId, setRecruitmentId] = useState<number | null>(null);
@@ -118,7 +165,24 @@ export default function App() {
     [],
   );
 
+  const sidebarRef = useRef<HTMLElement>(null);
+  const openSidebarButtonRef = useRef<HTMLButtonElement>(null);
+  // 접을 때 사이드바 안에 있던 포커스를 열기 버튼(☰)으로 옮길지. 버튼은 접힌 뒤에 그려지므로 그린 다음 옮긴다.
+  const shouldFocusOpenButtonRef = useRef(false);
+  useEffect(() => {
+    if (isSidebarOpen || !shouldFocusOpenButtonRef.current) return;
+    shouldFocusOpenButtonRef.current = false;
+    openSidebarButtonRef.current?.focus();
+  }, [isSidebarOpen]);
+
   const toggleSidebar = () => {
+    // 포커스가 남은 채 사이드바를 숨기면(aria-hidden) 화면 읽기 프로그램이 숨긴 요소를 가리키고 브라우저가 경고한다.
+    // 접기 전에 포커스를 빼 두고, 접힌 뒤 열기 버튼으로 옮긴다(R-16).
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && sidebarRef.current?.contains(focused)) {
+      focused.blur();
+      shouldFocusOpenButtonRef.current = true;
+    }
     setIsPeeking(false);
     setIsSidebarOpen((current) => {
       try {
@@ -145,18 +209,34 @@ export default function App() {
   useEffect(() => {
     let isCancelled = false;
     void restoreSession().then((restored) => {
-      if (!isCancelled) setSession(restored);
-    });
-    // 토큰 재발급까지 실패하면 로그인 화면으로 돌아간다.
-    setSessionExpiredHandler(() => {
-      window.alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
-      forgetScreenMemory();
-      setSession(null);
+      if (isCancelled) return;
+      if (restored.status === 'failed') {
+        setIsRestoreFailed(true);
+        return;
+      }
+      if (restored.status === 'invalidAccount') {
+        setIsAccountInvalid(true);
+        return;
+      }
+      if (restored.status === 'ok' && !claimScreenMemory(restored.session.adminId)) {
+        setMenu({ tab: 'applicants' });
+      }
+      setSession(restored.status === 'ok' ? restored.session : null);
     });
     return () => {
       isCancelled = true;
-      setSessionExpiredHandler(null);
     };
+  }, [restoreAttempt]);
+
+  useEffect(() => {
+    // 토큰 재발급까지 거절되면(로그인이 정말 끝남) 로그인 화면으로 돌아간다.
+    // 같은 계정으로 다시 로그인하면 이어서 쓸 수 있게 미저장 초안과 보던 화면은 남긴다(계정 id로 구분한다).
+    setSessionExpiredHandler(() => {
+      keepDraftForRelogin();
+      window.alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+      setSession(null);
+    });
+    return () => setSessionExpiredHandler(null);
   }, []);
 
   useEffect(() => {
@@ -190,7 +270,8 @@ export default function App() {
   const handleLoginSuccess = (next: AuthSession) => {
     setRecruitments(null);
     setRecruitmentError(null);
-    setMenu({ tab: 'applicants' });
+    // 같은 계정이 다시 로그인했으면(로그인 만료 뒤) 보던 메뉴로 돌아가고, 다른 계정이면 전체 지원 현황에서 시작한다.
+    setMenu(claimScreenMemory(next.adminId) ? readMenu() : { tab: 'applicants' });
     setSession(next);
   };
 
@@ -207,6 +288,7 @@ export default function App() {
       logout()
         .then(() => {
           forgetScreenMemory();
+          forgetRecoveredDrafts();
           setSession(null);
         })
         .catch(() => window.alert('로그아웃하지 못했습니다. 잠시 후 다시 시도해 주세요.'));
@@ -214,6 +296,52 @@ export default function App() {
     if (confirmLeave(go)) go();
   };
 
+  if (isAccountInvalid) {
+    return (
+      <main
+        role="alert"
+        className="flex h-full flex-col items-center justify-center gap-3 text-sm text-slate-700"
+      >
+        <p>{INVALID_ACCOUNT_MESSAGE}</p>
+        <button
+          type="button"
+          onClick={() => {
+            // 서버의 로그인(쿠키)을 끝내야 새로고침 때 같은 안내로 돌아오지 않는다. 실패해도 로그인 화면은 보인다.
+            void logout()
+              .catch(() => {})
+              .finally(() => {
+                forgetScreenMemory();
+                setIsAccountInvalid(false);
+                setSession(null);
+              });
+          }}
+          className="cursor-pointer rounded-sm border border-slate-300 bg-white px-4 py-2 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
+        >
+          다시 로그인
+        </button>
+      </main>
+    );
+  }
+  if (isRestoreFailed) {
+    return (
+      <main
+        role="alert"
+        className="flex h-full flex-col items-center justify-center gap-3 text-sm text-slate-700"
+      >
+        <p>로그인 상태를 확인하지 못했습니다.</p>
+        <button
+          type="button"
+          onClick={() => {
+            setIsRestoreFailed(false);
+            setRestoreAttempt((attempt) => attempt + 1);
+          }}
+          className="cursor-pointer rounded-sm border border-slate-300 bg-white px-4 py-2 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
+        >
+          다시 시도
+        </button>
+      </main>
+    );
+  }
   if (session === undefined) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-slate-500">
@@ -224,6 +352,9 @@ export default function App() {
   if (session === null) return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 
   const tracks = visibleTracksOf(session);
+  // 부문이 비었거나 모르는 값이라 볼 수 있는 부문·지원서가 없는 계정. 전 부문을 보는 계정은 그대로 둔다.
+  const hasUnknownTrack =
+    session.track === null && tracks.length === 0 && !canViewAllApplicants(session);
   // 기억해 둔 부문을 이 계정이 볼 수 없으면(다른 계정으로 로그인 등) 전체 지원 현황을 보인다.
   const menu: Menu =
     savedMenu.tab === 'my' && !tracks.includes(savedMenu.track) ? { tab: 'applicants' } : savedMenu;
@@ -258,9 +389,10 @@ export default function App() {
                   onNavigate?.();
                   moveTo(item);
                 }}
-                className={`flex w-full cursor-pointer items-center rounded-lg px-2.5 py-2 text-left text-[14px] transition-all focus-visible:outline-2 focus-visible:outline-slate-400 ${
+                // 현재 메뉴는 배경과 함께 왼쪽 표시선을 둔다(V-12). aria-current로 화면 읽기 프로그램에도 알린다.
+                className={`relative flex w-full cursor-pointer items-center rounded-lg px-2.5 py-2 text-left text-[14px] transition-all focus-visible:outline-2 focus-visible:outline-slate-400 ${
                   isActive(item)
-                    ? 'bg-slate-100 font-semibold text-slate-900'
+                    ? 'bg-slate-100 font-semibold text-slate-900 before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-slate-700'
                     : 'font-medium text-slate-600 hover:bg-slate-100/70 hover:text-slate-900'
                 }`}
               >
@@ -278,6 +410,7 @@ export default function App() {
       {/* 사이드바는 접어도 그려 두고 폭만 0으로 줄인다. 폭이 부드럽게 바뀌어 본문(표 등)도 함께 천천히 늘고 준다.
           접혀 있을 때는 inert로 키보드 이동·화면 읽기에서 뺀다. */}
       <aside
+        ref={sidebarRef}
         inert={!isSidebarOpen}
         aria-hidden={!isSidebarOpen}
         className={`h-full shrink-0 overflow-hidden bg-white shadow-[0_0_15px_rgba(0,0,0,0.02)] transition-[width] duration-200 ease-out select-none motion-reduce:transition-none ${
@@ -341,6 +474,7 @@ export default function App() {
             {!isSidebarOpen && (
               <div onMouseEnter={showPeek} onMouseLeave={hidePeek}>
                 <button
+                  ref={openSidebarButtonRef}
                   type="button"
                   onClick={toggleSidebar}
                   aria-label="사이드바 열기"
@@ -380,7 +514,12 @@ export default function App() {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto px-8 py-7">
-          {recruitmentError ? (
+          {hasUnknownTrack ? (
+            // 부문을 모르는 계정은 메뉴가 비어 빈 화면이 되므로 이유를 본문에 알린다(V-08). 알려진 부문·ALL은 그대로다.
+            <p role="alert" className="text-sm text-slate-700">
+              {UNKNOWN_TRACK_MESSAGE}
+            </p>
+          ) : recruitmentError ? (
             <p role="alert" className="text-sm text-red-600">
               {recruitmentError}
             </p>

@@ -2,6 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 
+import { isScrolledOut } from '@/shared/lib/isScrolledOut';
+
+import { useListboxKeyboard } from './useListboxKeyboard';
+
 export interface SelectDropdownOption<T extends string> {
   value: T;
   label: string;
@@ -62,6 +66,11 @@ export function SelectDropdown<T extends string>({
     if (!isOpen) return;
     const measure = () => {
       if (!buttonRef.current) return;
+      // 버튼이 스크롤 영역 밖으로 완전히 나가면 목록만 떠 있지 않게 닫는다(V-14).
+      if (isScrolledOut(buttonRef.current)) {
+        setIsOpen(false);
+        return;
+      }
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - LIST_GAP - VIEWPORT_MARGIN;
       const spaceAbove = rect.top - LIST_GAP - VIEWPORT_MARGIN;
@@ -95,25 +104,23 @@ export function SelectDropdown<T extends string>({
 
   useEffect(() => {
     if (!isOpen) return;
-    const close = () => setIsOpen(false);
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (!buttonRef.current?.contains(target) && !listRef.current?.contains(target)) close();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        close();
-        buttonRef.current?.focus();
+      if (!buttonRef.current?.contains(target) && !listRef.current?.contains(target)) {
+        setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [isOpen]);
+
+  const select = (next: T) => {
+    onChange(next);
+    setIsOpen(false);
+    buttonRef.current?.focus();
+  };
+  // 키보드 조작은 포커스가 있는 버튼에서 받는다. 표 행처럼 바깥에서 키 전파를 막아도 Esc·방향키가 동작한다(C-02).
+  const keyboard = useListboxKeyboard({ options, value, isOpen, setIsOpen, onSelect: select });
 
   return (
     <div className="relative">
@@ -123,8 +130,10 @@ export function SelectDropdown<T extends string>({
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        {...keyboard.buttonProps}
         disabled={disabled}
         onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={keyboard.onKeyDown}
         className={`relative cursor-pointer rounded-sm disabled:cursor-not-allowed disabled:opacity-50 border border-slate-200 bg-white pl-2.5 pr-7 text-xs font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-slate-300 focus:border-slate-400 ${buttonClassName}`}
       >
         {selectedLabel}
@@ -139,6 +148,7 @@ export function SelectDropdown<T extends string>({
         createPortal(
           <div
             ref={listRef}
+            id={keyboard.listId}
             role="listbox"
             aria-label={ariaLabel}
             style={{
@@ -150,25 +160,24 @@ export function SelectDropdown<T extends string>({
             }}
             className="fixed z-[9999] w-max overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-[0_12px_32px_-14px_rgba(15,23,42,0.28)] animate-in fade-in duration-150"
           >
-            {options.map((option) => (
-              <button
+            {options.map((option, index) => (
+              // 항목은 포커스를 받지 않는다. 누를 때 포커스가 버튼에 남아 키보드 조작이 이어진다.
+              <div
                 key={option.value}
-                type="button"
+                id={keyboard.optionId(index)}
                 role="option"
                 aria-selected={option.value === value}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                  buttonRef.current?.focus();
-                }}
-                className={`flex w-full items-center border-b border-slate-100 px-4 py-2.5 text-left text-[14px] whitespace-nowrap transition-colors duration-150 last:border-b-0 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none cursor-pointer ${
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => keyboard.setActiveIndex(index)}
+                onClick={() => select(option.value)}
+                className={`flex w-full items-center border-b border-slate-100 px-4 py-2.5 text-left text-[14px] whitespace-nowrap transition-colors duration-150 last:border-b-0 cursor-pointer ${
                   option.value === value
                     ? 'bg-slate-100 font-semibold text-slate-950'
                     : 'text-slate-700'
-                }`}
+                } ${index === keyboard.activeIndex && option.value !== value ? 'bg-slate-50' : ''}`}
               >
                 {option.label}
-              </button>
+              </div>
             ))}
           </div>,
           document.body,

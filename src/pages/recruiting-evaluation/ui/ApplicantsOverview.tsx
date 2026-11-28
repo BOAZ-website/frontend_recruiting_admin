@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { TRACK_IMAGE_BY_CODE } from '@/entities/user/model/trackImage';
 import { dateTimeTextOf } from '@/shared/lib/date';
+import { openRowOnKey } from '@/shared/lib/rowKeyboard';
 import { useLoaded } from '@/shared/lib/useLoaded';
 import { FilterDropdown, type FilterDropdownOption } from '@/shared/ui/FilterDropdown';
 import { SearchInput } from '@/shared/ui/SearchInput';
@@ -33,7 +34,7 @@ interface ApplicantsOverviewProps {
   fetchAnswers: (applicantIdKey: string) => Promise<ApplicantAnswerDto[]>;
   /** 제출 완료 지원자를 개인 평가 화면에서 연다. 평가할 수 있는 부문(visibleTracks)의 지원자에만 둔다. */
   onEvaluate: (applicantId: number) => void;
-  /** 평가할 수 있는 부문(visibleTracksOf). 전 부문을 볼 수 없는 계정은 목록도 이 부문만 보여 준다. 요약 지표는 부문과 상관없이 전체를 센다. */
+  /** 평가할 수 있는 부문(visibleTracksOf). 전 부문을 볼 수 없는 계정은 목록도 이 부문만 보여 준다. 요약 지표는 서버가 준 응답 전체를 센다. */
   visibleTracks: TrackType[];
   /** 전 부문 지원서를 보는 계정(차기대표진, 서비스운영팀장 MASTER)인지. 아니면 본인 부문의 제출 완료 지원서만 보여 준다. */
   canViewAllApplicants: boolean;
@@ -64,7 +65,7 @@ const COLUMN_WEIGHTS: Record<string, number> = {
 
 /**
  * 전체 지원 현황(EVL-APP). 지원서 목록과 지원서 상세를 보여 준다.
- * 요약 지표는 계정과 상관없이 전체 지원자로 센다. 목록은 전 부문 계정이면 임시저장(DRAFT)을 포함한 모든 지원서를,
+ * 요약 지표는 서버가 이 계정에 준 응답 전체로 센다(본인 부문 계정은 본인 부문만 받는다). 목록은 전 부문 계정이면 임시저장(DRAFT)을 포함한 모든 지원서를,
  * 그 밖의 계정은 본인 부문의 제출 완료 지원서만 보여 준다.
  */
 export function ApplicantsOverview({
@@ -78,7 +79,7 @@ export function ApplicantsOverview({
   const [query, setQuery] = useState<ApplicantListQuery>(DEFAULT_APPLICANT_QUERY);
   const [detail, setDetail] = useState<ApplicantEvaluationDto | null>(null);
 
-  // 서버는 계정과 상관없이 전 부문 지원서(임시저장 포함)를 돌려준다.
+  // 서버는 계정 범위의 지원서만 돌려준다. 본인 부문 계정은 본인 부문(임시저장 포함), 차기대표진은 전 부문이다(V-15).
   const allApplicants = list.data ?? [];
   // 목록은 전 부문 계정이면 전부, 그 밖의 계정이면 본인 부문의 제출 완료만 보여 준다.
   const applicants = canViewAllApplicants
@@ -91,7 +92,7 @@ export function ApplicantsOverview({
       );
   const rows = filterApplicants(applicants, query);
   const isFirstLoad = list.isLoading && !list.data;
-  // 요약 통계는 계정과 상관없이 전체 지원자(임시저장, 부문이 비어 있는 임시저장 포함)로 센다.
+  // 요약 통계는 서버가 준 응답 전체(임시저장, 부문이 비어 있는 임시저장 포함)로 센다. 본인 부문 계정에게는 본인 부문 수다.
   const summary = summarizeApplicants(allApplicants);
   // 계정과 상관없이 열은 늘 같다(본인 부문 계정도 부문·상태 열을 본다).
   const totalWeight = COLUMNS.reduce((sum, label) => sum + COLUMN_WEIGHTS[label], 0);
@@ -121,16 +122,18 @@ export function ApplicantsOverview({
   }
 
   return (
-    <div className="space-y-4">
+    // 요약 칸 배치는 화면 폭이 아니라 이 영역의 폭(@container)을 따른다. 사이드바를 펴면 영역이 좁아지기 때문이다(R-06).
+    <div className="@container space-y-4">
+      {/* 좁으면 2열, 조금 넓으면 3열, 넓으면 기존처럼 6칸 한 줄이다. 숫자·라벨은 그대로다. */}
       <section
         aria-label="지원 현황 요약"
-        className="mb-12 grid grid-cols-1 gap-y-4 rounded-md border border-slate-200 bg-white px-8 py-7 lg:px-0 lg:grid-flow-col lg:grid-cols-none lg:auto-cols-[minmax(0,1fr)] lg:items-center"
+        className="mb-12 grid grid-cols-2 gap-y-4 rounded-md border border-slate-200 bg-white px-8 py-7 @lg:grid-cols-3 @4xl:px-0 @4xl:grid-flow-col @4xl:grid-cols-none @4xl:auto-cols-[minmax(0,1fr)] @4xl:items-center"
       >
         <dl className="contents">
           {stats.map(([label, count, image], index) => (
             <div
               key={label}
-              className={`px-2 text-center ${index > 0 ? 'lg:border-l lg:border-slate-200' : ''}`}
+              className={`px-2 text-center ${index > 0 ? '@4xl:border-l @4xl:border-slate-200' : ''}`}
             >
               <dt className="flex items-center justify-center gap-1.5 text-sm leading-5 text-slate-500">
                 {image && (
@@ -218,10 +221,12 @@ export function ApplicantsOverview({
                     tabIndex={0}
                     aria-label={`${displayValue(applicant.name)} 지원서 상세`}
                     onClick={() => setDetail(applicant)}
-                    onKeyDown={(event) => event.key === 'Enter' && setDetail(applicant)}
+                    onKeyDown={openRowOnKey(() => setDetail(applicant))}
                     className="cursor-pointer"
                   >
-                    <td className="px-4 font-semibold">{displayValue(applicant.name)}</td>
+                    <td className="px-4 font-semibold break-keep wrap-break-word">
+                      {displayValue(applicant.name)}
+                    </td>
                     <td className="px-4">
                       <ValueText value={applicant.track ? TRACK_LABELS[applicant.track] : '-'} />
                     </td>

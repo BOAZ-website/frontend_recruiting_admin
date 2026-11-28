@@ -53,7 +53,8 @@ export function ApplicantDetailModal({
         aria-modal="true"
         aria-labelledby={titleId}
         // 인적사항만 띄울 때는 답변이 없어 창을 조금 좁게 둔다.
-        className={`evaluation-detail flex max-h-[90vh] w-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white ${withAnswers ? 'max-w-3xl' : 'max-w-[640px]'}`}
+        // 답변 창은 기본 너비(48rem)를 두되, 줄바꿈되지 않는 표(min-content)가 더 넓으면 그만큼 넓힌다. 글은 줄바꿈되어 너비에 영향이 없다.
+        className={`evaluation-detail flex max-h-[90vh] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white ${withAnswers ? 'w-min max-w-full min-w-[min(48rem,100%)]' : 'w-full max-w-[640px]'}`}
       >
         <div className="evaluation-detail-header flex items-center justify-between">
           <h2 id={titleId} className="text-[21px] font-bold">

@@ -3,7 +3,8 @@
  *
  * 오류가 날 때마다 시각을 세션 저장소에 남기고, ERROR_RELOAD_WINDOW_MS 안에 ERROR_RELOAD_LIMIT번까지만 새로고침한다.
  * 그보다 많이 나면 새로고침을 멈추고 안내 화면을 그리게 한다. 늦게(새로고침 몇 초 뒤) 나는 오류도 같은 상한에 걸린다.
- * 새로고침할 때는 화면을 되살리는 저장값(boaz_*)을 지운다. 저장값 때문에 난 오류가 새로고침 뒤 다시 나지 않게 하기 위해서다.
+ * 새로고침할 때는 이 앱이 쓰는 저장값(boaz_recruit_*)만 지운다. 저장값 때문에 난 오류가 새로고침 뒤 다시 나지 않게 하기 위해서다.
+ * 같은 출처의 다른 앱(관리자 콘솔 등) 저장값은 지우지 않는다.
  */
 
 /** 최근 오류 새로고침 시각 목록(JSON 배열, 밀리초)을 담는 세션 저장소 키. */
@@ -12,19 +13,10 @@ export const ERROR_RELOAD_WINDOW_MS = 60_000;
 export const ERROR_RELOAD_LIMIT = 2;
 
 /**
- * 새로고침해도 지우지 않는 저장값. 이 앱은 쓰지 않지만 관리자 콘솔(frontend_admin)의 키다.
- * 관리자 콘솔과 같은 출처에 올라가면 저장소를 함께 쓰므로, 지우면 관리자 콘솔의
- * 로그인 표시·아이디와 사용자가 고친 문구 템플릿이 사라진다.
+ * 지울 저장값: 이 앱이 쓰는 boaz_recruit_로 시작하는 키만이다. 같은 출처에 관리자 콘솔(frontend_admin) 등이 함께 올라가면
+ * 저장소를 같이 쓰므로, 다른 앱의 boaz_* 키(로그인 표시, 아이디, 문구 템플릿 등)는 남긴다.
  */
-const KEPT_STORAGE_KEYS: ReadonlySet<string> = new Set([
-  'boaz_is_logged_in',
-  'boaz_username',
-  'boaz_custom_notify_template',
-]);
-
-/** 지울 저장값: boaz_로 시작하고 KEPT_STORAGE_KEYS에 없는 키. */
-export const isScreenRestoreKey = (key: string): boolean =>
-  key.startsWith('boaz_') && !KEPT_STORAGE_KEYS.has(key);
+export const isScreenRestoreKey = (key: string): boolean => key.startsWith('boaz_recruit_');
 
 /** 시각 목록에 지금을 더하고, 시간 창 밖의 시각은 뺀다. */
 export const nextReloadTimes = (times: readonly number[], now: number): number[] => [
