@@ -789,14 +789,6 @@
   color: #303236;
   overflow-wrap: anywhere;
 }
-/* 스크롤 래퍼는 최소 너비가 0이라 표 너비를 창에 전하지 못한다. 상세 창에서는 래퍼 너비를 표 너비(max-content)로 두어
-   창이 표에 맞춰 넓어지게 하고, 실제 폭은 창 안(100%)으로 묶는다. 화면이 표보다 좁으면 창은 화면 끝에서 멈추고
-   표만 래퍼 안에서 가로로 스크롤한다(인적사항·답변 글은 제자리). */
-.evaluation-detail .review-answer-grid-scroll {
-  width: max-content;
-  min-width: 100%;
-  max-width: 100%;
-}
 .evaluation-detail .review-answers-empty {
   margin-top: 12px;
   padding: 32px 16px;
