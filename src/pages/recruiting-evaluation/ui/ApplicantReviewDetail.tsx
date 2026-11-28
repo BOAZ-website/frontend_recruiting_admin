@@ -192,6 +192,8 @@ export function ApplicantReviewDetail(p: ApplicantReviewDetailProps) {
           items={DETAIL_TABS}
           value={p.tab}
           onChange={p.onTabChange}
+          // 저장 중에는 이전·다음·목록 버튼처럼 탭도 잠근다(R-09).
+          disabled={p.saving}
         />
         <div className="review-toolbar">
           <span>

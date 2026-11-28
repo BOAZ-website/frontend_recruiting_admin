@@ -63,18 +63,39 @@ export function mergeApplicants(
   });
 }
 
+/**
+ * load()를 부르고, 읽는 사이에 저장이 끝났으면(generation이 바뀌었으면) 저장 전 값일 수 있어 다시 읽는다.
+ * 저장보다 먼저 시작한 조회가 늦게 와 저장 결과를 되돌리지 않게 한다. 저장이 끝난 뒤 시작한 조회는 서버 값을 그대로 따른다.
+ */
+export async function loadAfterSaves<T>(
+  load: () => Promise<T>,
+  generation: () => number,
+): Promise<T> {
+  for (;;) {
+    const before = generation();
+    const value = await load();
+    if (generation() === before) return value;
+  }
+}
+
 /** 공고 하나의 서류 평가 데이터를 서버에서 읽고 쓴다. recruitmentId가 바뀌면 화면을 key로 새로 만든다. */
 export function useEvaluationData(recruitmentId: number, adminId: number): EvaluationDataState {
   const [applicants, setApplicants] = useState<ApplicantEvaluationDto[]>([]);
   // 연달아 다시 읽을 때 늦게 온 옛 응답이 새 목록을 덮지 않게 마지막 요청만 반영한다.
   const fetchRequestRef = useRef(0);
+  // 개인 평가·최종 평가 저장이 성공할 때마다 올린다. 그 전에 시작한 목록 조회 결과는 버리고 다시 읽는다.
+  const saveGenerationRef = useRef(0);
 
   const fetchApplicants = useCallback(async (): Promise<ApplicantEvaluationDto[]> => {
     const requestId = ++fetchRequestRef.current;
-    const [summaries, evaluations] = await Promise.all([
-      recruitmentApi.fetchApplicantSummaries(recruitmentId),
-      recruitmentApi.fetchApplicantEvaluations(recruitmentId),
-    ]);
+    const [summaries, evaluations] = await loadAfterSaves(
+      () =>
+        Promise.all([
+          recruitmentApi.fetchApplicantSummaries(recruitmentId),
+          recruitmentApi.fetchApplicantEvaluations(recruitmentId),
+        ]),
+      () => saveGenerationRef.current,
+    );
     const merged = mergeApplicants(summaries, evaluations);
     if (requestId === fetchRequestRef.current) setApplicants(merged);
     return merged;
@@ -138,6 +159,7 @@ export function useEvaluationData(recruitmentId: number, adminId: number): Evalu
     input: MyEvaluationInput,
   ): Promise<ApplicantEvaluationDto> => {
     await recruitmentApi.saveMyEvaluation(applicant.id, input);
+    saveGenerationRef.current += 1;
     // 전체 목록을 다시 받지 않고 이 지원자만 고친다. 목록은 목록 화면으로 돌아갈 때 한 번 다시 읽는다.
     const updated = applyMyEvaluation(applicant, previous, input);
     setApplicants((current) => current.map((item) => (item.id === applicant.id ? updated : item)));
@@ -149,6 +171,7 @@ export function useEvaluationData(recruitmentId: number, adminId: number): Evalu
     decision: EvaluationDecision,
   ): Promise<void> => {
     const result = await recruitmentApi.updateFinalDecision(applicantId, decision);
+    saveGenerationRef.current += 1;
     setApplicants((current) =>
       current.map((item) =>
         item.id === applicantId ? { ...item, final_decision: result.final_decision } : item,

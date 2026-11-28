@@ -54,6 +54,14 @@ export function draftFromMyEvaluation(mine: MyEvaluationDto | null): MyEvaluatio
   };
 }
 
+/** 저장 요청으로 보낸 값을 폼 값으로 되돌린다. 저장에 성공하면 이것이 새 저장 기준이다. */
+export const draftFromSaveInput = (input: MyEvaluationInput): MyEvaluationDraft => ({
+  decision: input.decision,
+  score: input.score,
+  memo: input.memo,
+  interview_question: input.interview_question,
+});
+
 /** 저장된 값과 다른지. 다르면 다른 지원자·메뉴로 옮기기 전에 확인한다(§4.5). */
 export const isDraftChanged = (draft: MyEvaluationDraft, saved: MyEvaluationDraft): boolean =>
   draft.decision !== saved.decision ||

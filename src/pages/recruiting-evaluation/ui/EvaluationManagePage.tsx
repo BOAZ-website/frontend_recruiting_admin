@@ -16,6 +16,7 @@ import {
 import {
   DISCARD_UNDECIDED_EVALUATION_MESSAGE,
   draftFromMyEvaluation,
+  draftFromSaveInput,
   EMPTY_DRAFT,
   isDraftChanged,
   type MyEvaluationDraft,
@@ -143,6 +144,8 @@ export function EvaluationManagePage({
   const [isSaving, setIsSaving] = useState(false);
   // 진행 중인 개인 평가 저장. 끝나면 null이다.
   const savingRef = useRef<Promise<boolean> | null>(null);
+  // 운영진 평가 현황에서 본인 행 편집을 시작하기 직전의 초안. 행 편집을 취소하면 저장값이 아니라 이 값으로 돌린다(R-01).
+  const rowEditBaseRef = useRef<MyEvaluationDraft | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const isDraftDirty = selectedApplicant !== null && isDraftChanged(draft, savedDraft);
   const draftErrors = showDraftErrors ? validateMyEvaluation(draft) : {};
@@ -395,7 +398,7 @@ export function EvaluationManagePage({
       return false;
     }
     // 진행 중인 저장을 남겨 둔다. 저장 중 상단 메뉴를 누르면 새로 저장하지 않고 이 결과를 따른다.
-    const saving = submitMyEvaluation(selectedApplicant, input);
+    const saving = submitMyEvaluation(selectedApplicant, input, draft);
     savingRef.current = saving;
     return saving;
   }
@@ -403,6 +406,7 @@ export function EvaluationManagePage({
   async function submitMyEvaluation(
     applicant: ApplicantEvaluationDto,
     input: MyEvaluationInput,
+    draftAtSubmit: MyEvaluationDraft,
   ): Promise<boolean> {
     // 저장 중 메뉴를 옮기거나 목록으로 돌아가면 요청 번호가 바뀐다. 그때는 저장 결과로 닫힌 상세를 다시 열지 않는다.
     const requestId = openRequestRef.current;
@@ -421,7 +425,11 @@ export function EvaluationManagePage({
       setStatusRefreshKey((key) => key + 1);
       if (!isSameDetail) return false;
       setSelectedApplicant(updatedApplicant);
-      setSavedDraft(draft);
+      // 저장 기준은 실제로 보낸 값이다(R-02). 저장 중에는 입력이 잠겨 초안이 그대로면 보낸 값으로 맞추고,
+      // 그래도 바뀐 입력이 있으면 저장하지 않은 수정으로 남긴다.
+      const sent = draftFromSaveInput(input);
+      setSavedDraft(sent);
+      setDraft((current) => (isDraftChanged(current, draftAtSubmit) ? current : sent));
       setShowDraftErrors(false);
       return true;
     } catch (error) {
@@ -460,6 +468,8 @@ export function EvaluationManagePage({
           currentEvaluatorId={currentEvaluatorId}
           tab={modalTab}
           onTabChange={(tab) => {
+            // 저장 중에는 탭을 옮기지 않는다(R-09). 버튼도 잠기지만 같은 렌더에 연달아 누른 경우까지 막는다.
+            if (savingRef.current) return;
             // 개인 평가·운영진 평가 현황을 오가면 앞 화면의 알림(저장 완료 등)은 닫는다.
             setToast(null);
             setModalTab(tab);
@@ -483,10 +493,14 @@ export function EvaluationManagePage({
             saving: isSaving,
             locked: isMyEvaluationLoading || myEvaluationError !== null,
             onChange: (patch) => setDraft((current) => ({ ...current, ...patch })),
-            onStart: () => true,
+            onStart: () => {
+              rowEditBaseRef.current = draft;
+              return true;
+            },
             isDirty: isDraftDirty,
+            // 행 편집만 취소한다. 개인 평가 탭에서 쓰던 미저장 입력은 편집 시작 직전 값으로 남는다(R-01).
             onCancel: () => {
-              setDraft(savedDraft);
+              setDraft(rowEditBaseRef.current ?? savedDraft);
               setShowDraftErrors(false);
             },
             onSave: handleSaveMyEvaluation,
