@@ -118,7 +118,24 @@ export default function App() {
     [],
   );
 
+  const sidebarRef = useRef<HTMLElement>(null);
+  const openSidebarButtonRef = useRef<HTMLButtonElement>(null);
+  // 접을 때 사이드바 안에 있던 포커스를 열기 버튼(☰)으로 옮길지. 버튼은 접힌 뒤에 그려지므로 그린 다음 옮긴다.
+  const shouldFocusOpenButtonRef = useRef(false);
+  useEffect(() => {
+    if (isSidebarOpen || !shouldFocusOpenButtonRef.current) return;
+    shouldFocusOpenButtonRef.current = false;
+    openSidebarButtonRef.current?.focus();
+  }, [isSidebarOpen]);
+
   const toggleSidebar = () => {
+    // 포커스가 남은 채 사이드바를 숨기면(aria-hidden) 화면 읽기 프로그램이 숨긴 요소를 가리키고 브라우저가 경고한다.
+    // 접기 전에 포커스를 빼 두고, 접힌 뒤 열기 버튼으로 옮긴다(R-16).
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && sidebarRef.current?.contains(focused)) {
+      focused.blur();
+      shouldFocusOpenButtonRef.current = true;
+    }
     setIsPeeking(false);
     setIsSidebarOpen((current) => {
       try {
@@ -278,6 +295,7 @@ export default function App() {
       {/* 사이드바는 접어도 그려 두고 폭만 0으로 줄인다. 폭이 부드럽게 바뀌어 본문(표 등)도 함께 천천히 늘고 준다.
           접혀 있을 때는 inert로 키보드 이동·화면 읽기에서 뺀다. */}
       <aside
+        ref={sidebarRef}
         inert={!isSidebarOpen}
         aria-hidden={!isSidebarOpen}
         className={`h-full shrink-0 overflow-hidden bg-white shadow-[0_0_15px_rgba(0,0,0,0.02)] transition-[width] duration-200 ease-out select-none motion-reduce:transition-none ${
@@ -341,6 +359,7 @@ export default function App() {
             {!isSidebarOpen && (
               <div onMouseEnter={showPeek} onMouseLeave={hidePeek}>
                 <button
+                  ref={openSidebarButtonRef}
                   type="button"
                   onClick={toggleSidebar}
                   aria-label="사이드바 열기"

@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { TRACK_IMAGE_BY_CODE } from '@/entities/user/model/trackImage';
 import { dateTimeTextOf } from '@/shared/lib/date';
+import { openRowOnKey } from '@/shared/lib/rowKeyboard';
 import { useLoaded } from '@/shared/lib/useLoaded';
 import { FilterDropdown, type FilterDropdownOption } from '@/shared/ui/FilterDropdown';
 import { SearchInput } from '@/shared/ui/SearchInput';
@@ -218,7 +219,7 @@ export function ApplicantsOverview({
                     tabIndex={0}
                     aria-label={`${displayValue(applicant.name)} 지원서 상세`}
                     onClick={() => setDetail(applicant)}
-                    onKeyDown={(event) => event.key === 'Enter' && setDetail(applicant)}
+                    onKeyDown={openRowOnKey(() => setDetail(applicant))}
                     className="cursor-pointer"
                   >
                     <td className="px-4 font-semibold break-keep wrap-break-word">

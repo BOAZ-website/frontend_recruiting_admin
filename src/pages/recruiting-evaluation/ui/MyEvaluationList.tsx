@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
+import { openRowOnKey } from '@/shared/lib/rowKeyboard';
 import { useLoaded } from '@/shared/lib/useLoaded';
 import { FilterDropdown, type FilterDropdownOption } from '@/shared/ui/FilterDropdown';
 import { SearchInput } from '@/shared/ui/SearchInput';
@@ -236,7 +237,7 @@ export function MyEvaluationList({
                     tabIndex={0}
                     aria-label={`${displayValue(applicant.name)} 평가 열기`}
                     onClick={() => handleOpen(applicant.id)}
-                    onKeyDown={(event) => event.key === 'Enter' && handleOpen(applicant.id)}
+                    onKeyDown={openRowOnKey(() => handleOpen(applicant.id))}
                     className="cursor-pointer"
                   >
                     <td className="px-4 font-semibold break-keep wrap-break-word">

@@ -7,6 +7,7 @@ import {
   click,
   getBySelector,
   getByText,
+  keyDown,
   type Rendered,
   render,
   typeInto,
@@ -224,5 +225,37 @@ describe('C-03 최종 평가 저장 실패 후 재조회 실패', () => {
     await click(getByText(document, 'button', '다시 불러오기'));
     await waitFor(() => expect(document.body.textContent).not.toContain('목록을 새로 불러오지'));
     expect(document.querySelectorAll('tbody tr')).toHaveLength(3);
+  });
+});
+
+describe('지원자 이동 키', () => {
+  const position = () => getBySelector(document, '.review-toolbar span').textContent?.trim();
+
+  it('R-07·C-07: 점수 목록이 열린 동안 →로 이동하지 않고 저장 요청도 없다', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
+    await openApplicant(2);
+    await click(getBySelector(document, 'button[data-decision="FAIL"]'));
+    const scoreButton = getBySelector(document, 'button[aria-label="점수"]');
+    await click(scoreButton);
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+
+    await keyDown(document.body, 'ArrowRight');
+    expect(position()).toBe('2 / 3');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(fake.saved).toHaveLength(0);
+
+    // 목록을 닫으면 다시 이동할 수 있다(입력이 있으니 저장할지 묻는다).
+    await keyDown(scoreButton, 'Escape');
+    confirm.mockReturnValue(false);
+    await keyDown(document.body, 'ArrowRight');
+    expect(confirm).toHaveBeenCalled();
+  });
+
+  it('R-08: 키를 누르고 있어 반복되는 입력은 무시한다', async () => {
+    await openApplicant(2);
+    await keyDown(document.body, 'ArrowRight', { repeat: true });
+    expect(position()).toBe('2 / 3');
+    await keyDown(document.body, 'ArrowRight');
+    await waitFor(() => expect(position()).toBe('3 / 3'));
   });
 });
