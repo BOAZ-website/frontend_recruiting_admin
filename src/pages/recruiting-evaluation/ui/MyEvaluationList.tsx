@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { openRowOnKey } from '@/shared/lib/rowKeyboard';
 import { useLoaded } from '@/shared/lib/useLoaded';
@@ -43,6 +43,8 @@ interface MyEvaluationListProps {
     applicant: ApplicantEvaluationDto,
     decision: EvaluationDecision,
   ) => Promise<boolean>;
+  /** 저장 중인 최종 판정(지원서 id → 고른 값). 상세에 다녀와 목록을 새로 그려도 그 행을 잠그고 고른 값을 보인다(V-10). */
+  pendingFinalDecisions: Readonly<Record<number, EvaluationDecision>>;
 }
 
 // 부문은 메뉴가 정하므로 부문 열이 없다. 평가자별 상세는 상세 화면의 운영진 평가 현황에서 본다.
@@ -96,6 +98,7 @@ export function MyEvaluationList({
   onOpen,
   canWriteFinalDecision,
   onSaveFinalDecision,
+  pendingFinalDecisions,
 }: MyEvaluationListProps) {
   const list = useLoaded('applicants', fetchApplicants);
   // 행마다 고른 최종 평가. 저장하는 동안과 다시 읽기 전까지 보여 주고, 없으면 서버 값을 보여 준다.
@@ -104,8 +107,19 @@ export function MyEvaluationList({
   const [finalDrafts, setFinalDrafts] = useState<
     Record<number, { decision: EvaluationDecision; basis: ApplicantEvaluationDto[] | null }>
   >({});
-  // 최종 평가를 저장 중인 지원서 id. 그 행만 잠그고 다른 행은 바로 바꿀 수 있다.
-  const [savingFinalIds, setSavingFinalIds] = useState<number[]>([]);
+  // 최종 평가를 저장 중인 행은 그 행만 잠그고 다른 행은 바로 바꿀 수 있다.
+  const isSavingFinal = (applicantId: number) => applicantId in pendingFinalDecisions;
+
+  // 최종 평가 저장이 끝나면(성공·실패) 목록을 다시 읽는다. 저장 중 상세에 다녀와 새로 그린 목록도 저장 결과를 받는다.
+  const { reload } = list;
+  const pendingKey = Object.keys(pendingFinalDecisions).join(',');
+  const previousPendingRef = useRef(pendingKey);
+  useEffect(() => {
+    const previous = previousPendingRef.current.split(',').filter(Boolean);
+    previousPendingRef.current = pendingKey;
+    const current = pendingKey.split(',');
+    if (previous.some((id) => !current.includes(id))) reload();
+  }, [pendingKey, reload]);
 
   const applicants = list.data ?? [];
   const submitted = applicants.filter(
@@ -127,10 +141,12 @@ export function MyEvaluationList({
     );
 
   const finalDraftOf = (applicant: ApplicantEvaluationDto) => {
+    const pending = pendingFinalDecisions[applicant.id];
+    if (pending) return pending;
     const draft = finalDrafts[applicant.id];
-    const isCurrent =
-      draft !== undefined && (savingFinalIds.includes(applicant.id) || draft.basis === list.data);
-    return isCurrent ? draft.decision : applicant.final_decision;
+    return draft !== undefined && draft.basis === list.data
+      ? draft.decision
+      : applicant.final_decision;
   };
 
   // 최종 평가는 고르는 즉시 저장한다(저장 버튼 없음). 같은 값이면 요청하지 않는다.
@@ -139,9 +155,8 @@ export function MyEvaluationList({
     applicant: ApplicantEvaluationDto,
     decision: EvaluationDecision,
   ) => {
-    if (savingFinalIds.includes(applicant.id) || decision === finalDraftOf(applicant)) return;
+    if (isSavingFinal(applicant.id) || decision === finalDraftOf(applicant)) return;
     setFinalDrafts((current) => ({ ...current, [applicant.id]: { decision, basis: list.data } }));
-    setSavingFinalIds((current) => [...current, applicant.id]);
     const saved = await onSaveFinalDecision(applicant, decision);
     // 성공하면 고른 값이 곧 서버 값이라 다시 읽는 동안 깜빡이지 않게 둔다.
     if (!saved) {
@@ -151,8 +166,6 @@ export function MyEvaluationList({
         return next;
       });
     }
-    setSavingFinalIds((current) => current.filter((id) => id !== applicant.id));
-    list.reload();
   };
 
   // 한 번도 읽지 못했을 때만 가운데 로딩 표시를 둔다(실패면 잠시 뒤 다시 읽는다).
@@ -283,7 +296,7 @@ export function MyEvaluationList({
                             ariaLabel={`${displayValue(applicant.name)} 최종 평가`}
                             value={finalDraftOf(applicant)}
                             options={FINAL_DECISION_SELECT_OPTIONS}
-                            disabled={savingFinalIds.includes(applicant.id)}
+                            disabled={isSavingFinal(applicant.id)}
                             onChange={(decision) => void handleChangeFinal(applicant, decision)}
                             buttonClassName="h-[30px] w-full"
                           />

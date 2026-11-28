@@ -41,6 +41,11 @@ export interface EvaluationDataState {
   ) => Promise<ApplicantEvaluationDto>;
   /** [REC-ADMIN-18] 지원자별 최종 판정을 바꾼다. 거절되면 ApiError를 던지고 데이터는 그대로 둔다. */
   updateFinalDecision: (applicantId: number, decision: EvaluationDecision) => Promise<void>;
+  /**
+   * 저장 중인 최종 판정(지원서 id → 고른 값). 목록 화면이 상세에 다녀오며 새로 그려져도 저장이 끝날 때까지
+   * 그 행을 잠그고 고른 값을 보이도록 화면 밖에서 가진다(V-10).
+   */
+  pendingFinalDecisions: Readonly<Record<number, EvaluationDecision>>;
 }
 
 /** 지원서 요약(DRAFT 포함)에 평가 집계를 붙인다. 집계가 없는 지원서는 빈 집계다. */
@@ -166,17 +171,29 @@ export function useEvaluationData(recruitmentId: number, adminId: number): Evalu
     return updated;
   };
 
+  const [pendingFinalDecisions, setPendingFinalDecisions] = useState<
+    Record<number, EvaluationDecision>
+  >({});
   const updateFinalDecision = async (
     applicantId: number,
     decision: EvaluationDecision,
   ): Promise<void> => {
-    const result = await recruitmentApi.updateFinalDecision(applicantId, decision);
-    saveGenerationRef.current += 1;
-    setApplicants((current) =>
-      current.map((item) =>
-        item.id === applicantId ? { ...item, final_decision: result.final_decision } : item,
-      ),
-    );
+    setPendingFinalDecisions((current) => ({ ...current, [applicantId]: decision }));
+    try {
+      const result = await recruitmentApi.updateFinalDecision(applicantId, decision);
+      saveGenerationRef.current += 1;
+      setApplicants((current) =>
+        current.map((item) =>
+          item.id === applicantId ? { ...item, final_decision: result.final_decision } : item,
+        ),
+      );
+    } finally {
+      setPendingFinalDecisions((current) => {
+        const next = { ...current };
+        delete next[applicantId];
+        return next;
+      });
+    }
   };
 
   return {
@@ -189,5 +206,6 @@ export function useEvaluationData(recruitmentId: number, adminId: number): Evalu
     fetchMyEvaluation,
     saveMyEvaluation,
     updateFinalDecision,
+    pendingFinalDecisions,
   };
 }

@@ -122,6 +122,7 @@ export function EvaluationManagePage({
     fetchMyEvaluation,
     saveMyEvaluation,
     updateFinalDecision,
+    pendingFinalDecisions,
   } = useEvaluationData(recruitmentId, account.adminId);
   const canWriteFinalDecision = canWriteFinalDecisionOf(account, track);
 
@@ -571,6 +572,7 @@ export function EvaluationManagePage({
           onOpen={handleOpenFromMyList}
           canWriteFinalDecision={canWriteFinalDecision}
           onSaveFinalDecision={handleSaveFinalDecision}
+          pendingFinalDecisions={pendingFinalDecisions}
         />
       )}
     </div>

@@ -259,3 +259,30 @@ describe('지원자 이동 키', () => {
     await waitFor(() => expect(position()).toBe('3 / 3'));
   });
 });
+
+describe('V-10 최종 평가 저장 중 화면 왕복', () => {
+  it('상세에 다녀와도 저장이 끝날 때까지 그 행을 잠그고 고른 값을 보인다', async () => {
+    let release = () => {};
+    fake.finalDecisionGate = new Promise((resolve) => {
+      release = resolve;
+    });
+    await renderList({ ...account, role: 'SUPER', teamName: '대표진' });
+    const finalButton = () =>
+      getBySelector<HTMLButtonElement>(document, 'button[aria-label="지원자1 최종 평가"]');
+    await click(await waitFor(finalButton));
+    await click(getByText(document, '[role="option"]', '보류'));
+    expect(finalButton().disabled).toBe(true);
+
+    await click(getBySelector(document, 'tr[aria-label="지원자2 평가 열기"]'));
+    await waitFor(() => getBySelector(document, '#review-memo'));
+    await click(getBySelector(document, 'button[aria-label="지원자 목록으로"]'));
+
+    await waitFor(finalButton);
+    expect(finalButton().disabled).toBe(true);
+    expect(finalButton().textContent).toBe('보류');
+
+    release();
+    await waitFor(() => expect(finalButton().disabled).toBe(false));
+    expect(finalButton().textContent).toBe('보류');
+  });
+});

@@ -53,20 +53,25 @@ export function summaryOf(
 export const fake = {
   summaries: [] as ApplicantSummaryDto[],
   myEvaluations: new Map<number, MyEvaluationDto | null>(),
+  finalDecisions: new Map<number, EvaluationDecision>(),
   saved: [] as { applicantId: number; input: MyEvaluationInput }[],
   saveGate: null as Promise<void> | null,
   saveError: null as Error | null,
   finalDecisionError: null as Error | null,
+  /** 있으면 최종 평가 저장이 이 Promise가 풀릴 때까지 기다린다. */
+  finalDecisionGate: null as Promise<void> | null,
   /** 목록(평가 집계) 조회 실패. 한 번 쓰면 비운다. */
   listErrors: [] as Error[],
   answers: new Map<number, ApplicantAnswersResponse['answers']>(),
   reset() {
     this.summaries = [summaryOf(1), summaryOf(2), summaryOf(3)];
     this.myEvaluations = new Map();
+    this.finalDecisions = new Map();
     this.saved = [];
     this.saveGate = null;
     this.saveError = null;
     this.finalDecisionError = null;
+    this.finalDecisionGate = null;
     this.listErrors = [];
     this.answers = new Map();
   },
@@ -83,7 +88,7 @@ function evaluationOf(summary: ApplicantSummaryDto): ApplicantEvaluationResponse
     hold_count: mine?.decision === 'HOLD' ? 1 : 0,
     fail_count: mine?.decision === 'FAIL' ? 1 : 0,
     total_score: mine?.score ?? 0,
-    final_decision: 'PENDING',
+    final_decision: fake.finalDecisions.get(summary.id) ?? 'PENDING',
     my_decision: mine?.decision ?? null,
   };
 }
@@ -168,6 +173,8 @@ export async function updateFinalDecision(
   applicantId: number,
   decision: EvaluationDecision,
 ): Promise<{ applicant_id: number; final_decision: EvaluationDecision }> {
+  if (fake.finalDecisionGate) await fake.finalDecisionGate;
   if (fake.finalDecisionError) throw fake.finalDecisionError;
+  fake.finalDecisions.set(applicantId, decision);
   return { applicant_id: applicantId, final_decision: decision };
 }
