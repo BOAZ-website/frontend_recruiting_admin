@@ -286,3 +286,46 @@ describe('V-10 최종 평가 저장 중 화면 왕복', () => {
     expect(finalButton().textContent).toBe('보류');
   });
 });
+
+describe('로그인 만료 뒤 초안 복구와 화면 기억', () => {
+  const keepDraftOf = (adminId: number) =>
+    sessionStorage.setItem(
+      'boaz_recruit_drafts',
+      JSON.stringify({
+        [`${adminId}:3:1`]: {
+          decision: 'HOLD',
+          score: 3,
+          memo: '만료 전 쓰던 메모',
+          interview_question: '',
+        },
+      }),
+    );
+
+  it('같은 계정이면 서버 값을 저장 기준으로 두고 미저장 입력으로 되살린다(자동 저장 없음)', async () => {
+    keepDraftOf(ME);
+    await openApplicant(1);
+    expect(memoField().value).toBe('만료 전 쓰던 메모');
+    expect(getByText(document, 'button', '저장하기').hasAttribute('disabled')).toBe(false);
+    expect(fake.saved).toHaveLength(0);
+    expect(sessionStorage.getItem('boaz_recruit_drafts')).toBeNull();
+  });
+
+  it('다른 계정이 남긴 초안은 보이지 않는다', async () => {
+    keepDraftOf(ME + 1);
+    await openApplicant(1);
+    expect(memoField().value).toBe('저장본');
+  });
+
+  it('보던 지원자 화면은 같은 계정·공고일 때만 되살린다', async () => {
+    const detail = { recruitmentId: 3, applicantId: 1, tab: 'review', queue: [3, 2, 1] };
+    sessionStorage.setItem('boaz_recruit_detail', JSON.stringify({ ...detail, adminId: ME + 1 }));
+    await renderList();
+    await waitFor(() => getBySelector(document, 'tr[aria-label="지원자1 평가 열기"]'));
+    expect(document.querySelector('#review-memo')).toBeNull();
+    screen.unmount();
+
+    sessionStorage.setItem('boaz_recruit_detail', JSON.stringify({ ...detail, adminId: ME }));
+    await renderList();
+    await waitFor(() => expect(memoField().value).toBe('저장본'));
+  });
+});

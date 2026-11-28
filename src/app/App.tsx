@@ -6,6 +6,10 @@ import type { AuthSession } from '@/entities/auth/model/types';
 import { trackImageOf } from '@/entities/user/model/trackImage';
 import { fetchRecruitments, type RecruitmentDto } from '@/entities/recruitment/api/recruitmentApi';
 import { visibleTracksOf } from '@/pages/recruiting-evaluation/model/applicantList';
+import {
+  forgetRecoveredDrafts,
+  keepDraftForRelogin,
+} from '@/pages/recruiting-evaluation/model/draftRecovery';
 import { TRACK_LABELS, type TrackType } from '@/pages/recruiting-evaluation/model/types';
 import { EvaluationManagePage } from '@/pages/recruiting-evaluation/ui/EvaluationManagePage';
 import { setSessionExpiredHandler } from '@/shared/api/client';
@@ -41,9 +45,16 @@ type Menu = { tab: 'applicants' } | { tab: 'my'; track: TrackType };
 
 // 새로고침해도 보던 메뉴로 돌아오게 탭마다 기억한다. 값은 부문 이름 또는 'applicants'.
 const MENU_KEY = 'boaz_recruit_menu';
+// 화면 기억값을 남긴 계정 id. 다른 계정이 로그인하면 앞사람 화면 기억값을 쓰지 않고 지운다.
+const SCREEN_OWNER_KEY = 'boaz_recruit_screen_owner';
 // 로그아웃하면 지우는 화면 기억값. boaz_recruit_detail은 EvaluationManagePage의 DETAIL_KEY,
 // boaz_recruit_answers_scroll은 ApplicantReviewDetail의 답변 스크롤 위치다.
-const SCREEN_MEMORY_KEYS = [MENU_KEY, 'boaz_recruit_detail', 'boaz_recruit_answers_scroll'];
+const SCREEN_MEMORY_KEYS = [
+  MENU_KEY,
+  'boaz_recruit_detail',
+  'boaz_recruit_answers_scroll',
+  SCREEN_OWNER_KEY,
+];
 
 /** 다음에 같은 탭에서 로그인한 사람이 앞사람이 보던 화면으로 들어가지 않게 지운다. */
 function forgetScreenMemory() {
@@ -51,6 +62,22 @@ function forgetScreenMemory() {
     SCREEN_MEMORY_KEYS.forEach((key) => sessionStorage.removeItem(key));
   } catch {
     // 저장소를 쓸 수 없으면 남은 값도 없다.
+  }
+}
+
+/**
+ * 로그인한 계정이 화면 기억값의 주인인지 확인하고 주인으로 적는다. 다른 계정이 남긴 기억값이면 먼저 지운다.
+ * 같은 계정이면 true(보던 메뉴·지원자로 돌아가도 된다).
+ */
+function claimScreenMemory(adminId: number): boolean {
+  try {
+    const owner = sessionStorage.getItem(SCREEN_OWNER_KEY);
+    const isSameOwner = owner === String(adminId);
+    if (!isSameOwner) forgetScreenMemory();
+    sessionStorage.setItem(SCREEN_OWNER_KEY, String(adminId));
+    return isSameOwner;
+  } catch {
+    return false;
   }
 }
 const TRACKS: readonly TrackType[] = ['ANALYSIS', 'VISUALIZATION', 'ENGINEERING'];
@@ -97,6 +124,10 @@ function BrandText() {
 export default function App() {
   // undefined: 새로고침 뒤 로그인 상태를 되살리는 중, null: 로그인 전.
   const [session, setSession] = useState<AuthSession | null | undefined>(undefined);
+  // 새로고침 뒤 로그인 상태를 확인하지 못했는지(연결 끊김·서버 오류). 로그인 화면 대신 다시 시도 안내를 보인다.
+  const [isRestoreFailed, setIsRestoreFailed] = useState(false);
+  // 다시 시도를 누를 때마다 올려 로그인 상태 확인을 다시 한다.
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [recruitments, setRecruitments] = useState<RecruitmentDto[] | null>(null);
   const [recruitmentError, setRecruitmentError] = useState<string | null>(null);
   const [recruitmentId, setRecruitmentId] = useState<number | null>(null);
@@ -170,18 +201,30 @@ export default function App() {
   useEffect(() => {
     let isCancelled = false;
     void restoreSession().then((restored) => {
-      if (!isCancelled) setSession(restored);
-    });
-    // 토큰 재발급까지 실패하면 로그인 화면으로 돌아간다.
-    setSessionExpiredHandler(() => {
-      window.alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
-      forgetScreenMemory();
-      setSession(null);
+      if (isCancelled) return;
+      if (restored.status === 'failed') {
+        setIsRestoreFailed(true);
+        return;
+      }
+      if (restored.status === 'ok' && !claimScreenMemory(restored.session.adminId)) {
+        setMenu({ tab: 'applicants' });
+      }
+      setSession(restored.status === 'ok' ? restored.session : null);
     });
     return () => {
       isCancelled = true;
-      setSessionExpiredHandler(null);
     };
+  }, [restoreAttempt]);
+
+  useEffect(() => {
+    // 토큰 재발급까지 거절되면(로그인이 정말 끝남) 로그인 화면으로 돌아간다.
+    // 같은 계정으로 다시 로그인하면 이어서 쓸 수 있게 미저장 초안과 보던 화면은 남긴다(계정 id로 구분한다).
+    setSessionExpiredHandler(() => {
+      keepDraftForRelogin();
+      window.alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+      setSession(null);
+    });
+    return () => setSessionExpiredHandler(null);
   }, []);
 
   useEffect(() => {
@@ -215,7 +258,8 @@ export default function App() {
   const handleLoginSuccess = (next: AuthSession) => {
     setRecruitments(null);
     setRecruitmentError(null);
-    setMenu({ tab: 'applicants' });
+    // 같은 계정이 다시 로그인했으면(로그인 만료 뒤) 보던 메뉴로 돌아가고, 다른 계정이면 전체 지원 현황에서 시작한다.
+    setMenu(claimScreenMemory(next.adminId) ? readMenu() : { tab: 'applicants' });
     setSession(next);
   };
 
@@ -232,6 +276,7 @@ export default function App() {
       logout()
         .then(() => {
           forgetScreenMemory();
+          forgetRecoveredDrafts();
           setSession(null);
         })
         .catch(() => window.alert('로그아웃하지 못했습니다. 잠시 후 다시 시도해 주세요.'));
@@ -239,6 +284,26 @@ export default function App() {
     if (confirmLeave(go)) go();
   };
 
+  if (isRestoreFailed) {
+    return (
+      <main
+        role="alert"
+        className="flex h-full flex-col items-center justify-center gap-3 text-sm text-slate-700"
+      >
+        <p>로그인 상태를 확인하지 못했습니다.</p>
+        <button
+          type="button"
+          onClick={() => {
+            setIsRestoreFailed(false);
+            setRestoreAttempt((attempt) => attempt + 1);
+          }}
+          className="cursor-pointer rounded-sm border border-slate-300 bg-white px-4 py-2 text-[13px] font-semibold text-slate-800 hover:bg-slate-50"
+        >
+          다시 시도
+        </button>
+      </main>
+    );
+  }
   if (session === undefined) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-slate-500">

@@ -36,6 +36,11 @@ import {
   type TrackType,
 } from '../model/types';
 import { useEvaluationData } from '../model/useEvaluationData';
+import {
+  type DraftSnapshot,
+  registerDraftSnapshot,
+  takeRecoveredDraft,
+} from '../model/draftRecovery';
 import { ApplicantReviewDetail, type ReviewDetailTab } from './ApplicantReviewDetail';
 import { ApplicantsOverview } from './ApplicantsOverview';
 import { MyEvaluationList } from './MyEvaluationList';
@@ -64,6 +69,8 @@ interface EvaluationManagePageProps {
 const DETAIL_KEY = 'boaz_recruit_detail';
 
 interface SavedDetail {
+  /** 이 화면을 보던 계정. 다른 계정으로 로그인하면 되살리지 않는다. */
+  adminId: number;
   recruitmentId: number;
   applicantId: number;
   tab: ReviewDetailTab;
@@ -78,6 +85,7 @@ function readSavedDetail(): SavedDetail | null {
     if (typeof value !== 'object' || value === null) return null;
     const v = value as Partial<SavedDetail>;
     if (
+      typeof v.adminId !== 'number' ||
       typeof v.recruitmentId !== 'number' ||
       typeof v.applicantId !== 'number' ||
       (v.tab !== 'review' && v.tab !== 'status') ||
@@ -260,7 +268,14 @@ export function EvaluationManagePage({
     try {
       const loaded = draftFromMyEvaluation(await fetchMyEvaluation(app.id));
       if (requestId !== openRequestRef.current) return;
-      setDraft(loaded);
+      // 로그인 만료로 남긴 초안이 있으면 서버 최신 값(저장 기준)을 세운 뒤 미저장 입력으로 되살린다.
+      // 내 평가를 읽었다는 것은 지금도 이 지원서에 접근할 수 있다는 뜻이다. 서버에는 자동으로 저장하지 않는다.
+      const recovered = takeRecoveredDraft({
+        adminId: account.adminId,
+        recruitmentId,
+        applicantId: app.id,
+      });
+      setDraft(recovered ?? loaded);
       setSavedDraft(loaded);
     } catch (error) {
       if (requestId !== openRequestRef.current) return;
@@ -281,18 +296,35 @@ export function EvaluationManagePage({
     if (isDetailRestoredRef.current || applicants.length === 0) return;
     isDetailRestoredRef.current = true;
     const saved = readSavedDetail();
-    if (!saved || saved.recruitmentId !== recruitmentId) return;
+    // 같은 계정이 같은 공고에서 보던 화면만 되살린다. 아니면 목록에서 시작한다.
+    if (!saved || saved.adminId !== account.adminId || saved.recruitmentId !== recruitmentId) {
+      return;
+    }
     const app = applicants.find((item) => item.id === saved.applicantId);
     if (app) void openModalRef.current(app, saved.tab, saved.queue);
-  }, [applicants, recruitmentId]);
+  }, [applicants, recruitmentId, account.adminId]);
   useEffect(() => {
     if (!isDetailRestoredRef.current) return;
     writeSavedDetail(
       selectedApplicant
-        ? { recruitmentId, applicantId: selectedApplicant.id, tab: modalTab, queue: reviewQueue }
+        ? {
+            adminId: account.adminId,
+            recruitmentId,
+            applicantId: selectedApplicant.id,
+            tab: modalTab,
+            queue: reviewQueue,
+          }
         : null,
     );
-  }, [recruitmentId, selectedApplicant, modalTab, reviewQueue]);
+  }, [account.adminId, recruitmentId, selectedApplicant, modalTab, reviewQueue]);
+
+  // 로그인이 만료되면 App이 이 화면을 닫기 전에 미저장 초안을 남길 수 있게 지금 초안을 알려 준다.
+  const draftSnapshotRef = useRef<DraftSnapshot | null>(null);
+  draftSnapshotRef.current =
+    selectedApplicant && isDraftDirty
+      ? { adminId: account.adminId, recruitmentId, applicantId: selectedApplicant.id, draft }
+      : null;
+  useEffect(() => registerDraftSnapshot(() => draftSnapshotRef.current), []);
 
   // 브라우저 뒤로 가기(마우스패드 쓸어 넘기기 포함)로 평가 화면에서 목록으로 돌아가게 한다.
   // 평가 화면을 열 때 방문 기록을 하나 쌓고, 화면 안 버튼·메뉴로 닫으면 그 기록을 되돌린다.

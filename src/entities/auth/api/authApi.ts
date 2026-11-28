@@ -59,14 +59,28 @@ export async function login(request: LoginRequest): Promise<AuthSession> {
   }
 }
 
-/** 새로고침 뒤 Refresh Token 쿠키로 로그인 상태를 되살린다. 쿠키가 없거나 만료되면 null. */
-export async function restoreSession(): Promise<AuthSession | null> {
-  if ((await refreshAccessToken()) !== 'ok') return null;
+/**
+ * 새로고침 뒤 로그인 상태를 되살린 결과. signedOut은 쿠키가 없거나 서버가 거절한 것(로그인 화면),
+ * failed는 연결 끊김·시간 초과·서버 오류처럼 로그인 여부를 확인하지 못한 것(다시 시도 안내)이다.
+ */
+export type RestoreResult =
+  { status: 'ok'; session: AuthSession } | { status: 'signedOut' } | { status: 'failed' };
+
+/** 일시 장애로 보는 실패. 서버가 거절한 4xx와 달리 다시 시도하면 될 수 있다. */
+const isTemporaryFailure = (error: unknown) =>
+  error instanceof ApiError &&
+  (error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500);
+
+/** 새로고침 뒤 Refresh Token 쿠키로 로그인 상태를 되살린다. 일시 장애는 로그아웃과 구분한다. */
+export async function restoreSession(): Promise<RestoreResult> {
+  const refreshed = await refreshAccessToken();
+  if (refreshed === 'failed') return { status: 'failed' };
+  if (refreshed === 'rejected') return { status: 'signedOut' };
   try {
-    return await fetchSession();
-  } catch {
+    return { status: 'ok', session: await fetchSession() };
+  } catch (error) {
     setAccessToken(null);
-    return null;
+    return isTemporaryFailure(error) ? { status: 'failed' } : { status: 'signedOut' };
   }
 }
 

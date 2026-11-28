@@ -40,7 +40,7 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const isUsernameInvalid = errorKind === 'empty' && !username.trim();
-  const isPasswordInvalid = errorKind === 'rejected' || (errorKind === 'empty' && !password);
+  const isPasswordInvalid = errorKind === 'rejected' || (errorKind === 'empty' && !password.trim());
 
   const clearError = () => {
     setErrorMessage('');
@@ -61,6 +61,13 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
       (trimmedUsername ? passwordRef : usernameRef).current?.focus();
       return;
     }
+    // 공백만 있는 비밀번호는 보내지 않는다. 실제 비밀번호의 앞뒤 공백은 자르지 않고 그대로 보낸다(R-17).
+    if (!password.trim()) {
+      setErrorMessage('비밀번호를 입력해 주세요.');
+      setErrorKind('empty');
+      passwordRef.current?.focus();
+      return;
+    }
     clearError();
     setIsSubmitting(true);
     try {
@@ -70,13 +77,16 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
       // 서버에 닿지 못한 실패는 아이디·비밀번호 문제가 아니므로, 입력칸 오류 대신 알림창으로 알린다.
       if (error instanceof ApiError && error.code === 'NETWORK_ERROR') {
         window.alert(error.message);
-        return;
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : '로그인하지 못했습니다.');
+        setErrorKind('rejected');
       }
-      setErrorMessage(error instanceof Error ? error.message : '로그인하지 못했습니다.');
-      setErrorKind('rejected');
-    } finally {
+      // 제출 중 잠긴 버튼에서 포커스가 빠져 body로 떨어지므로 비밀번호 칸으로 돌린다(R-19).
       setIsSubmitting(false);
+      passwordRef.current?.focus();
+      return;
     }
+    setIsSubmitting(false);
   };
 
   return (
@@ -148,6 +158,8 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
                   label="비밀번호 지우기"
                   onClear={() => {
                     setPassword('');
+                    // 지우면 보기 상태도 숨김으로 되돌린다. 다시 입력한 비밀번호가 글자로 드러나지 않게 한다(R-18).
+                    setIsPasswordVisible(false);
                     clearError();
                     passwordRef.current?.focus();
                   }}
