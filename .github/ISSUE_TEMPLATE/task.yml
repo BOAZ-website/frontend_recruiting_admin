@@ -1,0 +1,26 @@
+name: 작업 이슈
+description: 일반 업무 이슈(engineering-playbook conventions/issue-pr.md "템플릿")
+title: '[Type] '
+projects: ['BOAZ-website/1']
+body:
+  - type: markdown
+    attributes:
+      {
+        value: '제목 `[Type]`을 `[Feat]`·`[Fix]`·`[Docs]`·`[Refactor]`·`[Test]`·`[Chore]` 중 하나로 바꾸세요. 만든 뒤 사이드바에서 Priority와 보드 Project 값을 지정하세요. AI·명령줄은 tools/new-issue.sh를 씁니다.',
+      }
+  - type: textarea
+    id: what
+    attributes: { label: '✨ 작업 내용', description: '무엇을 왜' }
+    validations: { required: true }
+  - type: textarea
+    id: checklist
+    attributes:
+      {
+        label: '✅ 작업 상세 내용(check-list)',
+        description: '머지 전에 체크할 수 있는 완료 조건만. 머지 뒤 확인은 상위 이슈에',
+        value: '- [ ] ',
+      }
+    validations: { required: true }
+  - type: textarea
+    id: etc
+    attributes: { label: '📎 참고' }
